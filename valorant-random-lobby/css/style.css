@@ -1,0 +1,54 @@
+body{
+  font-family:sans-serif;
+  background:#111;
+  color:#fff;
+  text-align:center;
+  margin:0;
+  padding:40px;
+}
+
+h1{
+  margin-bottom:30px;
+}
+
+#join-area{
+  margin-bottom:40px;
+}
+
+input{
+  padding:10px;
+  margin:5px;
+  border:none;
+  border-radius:4px;
+}
+
+button{
+  padding:10px 16px;
+  margin:5px;
+  border:none;
+  border-radius:4px;
+  background:#ff4655;
+  color:#fff;
+  cursor:pointer;
+}
+
+button:hover{
+  opacity:0.9;
+}
+
+#lobby{
+  margin-top:30px;
+}
+
+#playerList{
+  list-style:none;
+  padding:0;
+}
+
+#playerList li{
+  padding:10px;
+  margin:6px auto;
+  width:200px;
+  background:#222;
+  border-radius:6px;
+}
