@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VALORANT ランダムキャラツール</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ホーム画面 -->
+    <section id="screen-home" class="screen active">
+      <h1>VALORANT ランダムキャラツール</h1>
+
+      <div class="panel">
+        <label for="playerName">名前</label>
+        <input id="playerName" type="text" maxlength="20" placeholder="名前を入力" />
+
+        <label for="roomPass">合言葉</label>
+        <input id="roomPass" type="text" maxlength="10" placeholder="合言葉を入力" />
+
+        <div class="button-group">
+          <button id="joinRoomBtn">ロビー参加</button>
+          <button id="openAgentSettingsBtn">未開放エージェント設定</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 未開放エージェント設定画面 -->
+    <section id="screen-agent-settings" class="screen">
+      <h2>未開放エージェント設定</h2>
+
+      <div class="panel">
+        <div class="button-group">
+          <button id="setAllAgentsOwnedBtn">全エージェント持ち</button>
+          <button id="saveAgentSettingsBtn">保存</button>
+          <button id="backToHomeFromSettingsBtn">戻る</button>
+        </div>
+
+        <div id="agentSettingsList" class="agent-grid"></div>
+      </div>
+    </section>
+
+    <!-- ロビー画面 -->
+    <section id="screen-lobby" class="screen">
+      <h2>ロビー</h2>
+
+      <div class="panel">
+        <p>合言葉: <span id="lobbyRoomPass">-</span></p>
+        <p>オーナー: <span id="lobbyOwnerName">-</span></p>
+
+        <div class="lobby-columns">
+          <div class="lobby-block">
+            <h3>参加者</h3>
+            <ul id="playerList" class="member-list"></ul>
+          </div>
+
+          <div class="lobby-block">
+            <h3>観戦者</h3>
+            <ul id="spectatorList" class="member-list"></ul>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button id="readyBtn">準備完了</button>
+          <button id="cancelReadyBtn">準備解除</button>
+          <button id="goToStageSelectBtn" disabled>ステージ選択</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ステージ選択画面 -->
+    <section id="screen-stage-select" class="screen">
+      <h2>ステージ選択</h2>
+
+      <div class="panel">
+        <label for="stageSelect">ステージ</label>
+        <select id="stageSelect"></select>
+
+        <label for="roleCompSelect">役職割</label>
+        <select id="roleCompSelect"></select>
+
+        <div class="button-group">
+          <button id="randomRoleCompBtn">役職割ランダム</button>
+          <button id="startDrawBtn">抽選開始</button>
+          <button id="backToLobbyFromStageBtn">ロビーへ戻る</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 抽選演出画面 -->
+    <section id="screen-draw" class="screen">
+      <h2>抽選中...</h2>
+
+      <div class="panel center-panel">
+        <div id="drawAnimationArea">3秒演出</div>
+      </div>
+    </section>
+
+    <!-- 個人結果画面 -->
+    <section id="screen-personal-result" class="screen">
+      <h2>あなたはこのキャラになりました</h2>
+
+      <div class="panel center-panel">
+        <img id="personalAgentImage" src="" alt="agent" class="agent-result-image" />
+        <p id="personalAgentName">-</p>
+        <button id="toAllResultsBtn">全体結果へ</button>
+      </div>
+    </section>
+
+    <!-- 全体結果画面 -->
+    <section id="screen-all-results" class="screen">
+      <h2>全体結果</h2>
+
+      <div class="panel">
+        <div id="allResultsList" class="results-grid"></div>
+
+        <div class="button-group">
+          <button id="rerollBtn">再抽選</button>
+          <button id="backToLobbyBtn">ロビーへ</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="js/firebase.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
