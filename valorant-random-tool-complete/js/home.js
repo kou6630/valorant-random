@@ -1,6 +1,7 @@
 // js/home.js
 
 import { showScreen } from "./app.js";
+import { initLobby } from "./lobby.js";
 import { db } from "./firebase.js";
 import { ref, get, set } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
@@ -56,6 +57,7 @@ async function joinRoom() {
   window.playerName = name;
 
   showScreen("screen-lobby");
+  initLobby();
 }
 
 joinBtn.addEventListener("click", joinRoom);

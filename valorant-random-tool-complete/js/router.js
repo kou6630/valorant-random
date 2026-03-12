@@ -1,6 +1,7 @@
 // js/router.js
 
 import { showScreen } from "./app.js";
+import { initLobby } from "./lobby.js";
 
 const SCREEN_IDS = new Set([
   "screen-home",
@@ -15,6 +16,9 @@ const SCREEN_IDS = new Set([
 export function goTo(screenId) {
   if (!SCREEN_IDS.has(screenId)) return;
   showScreen(screenId);
+  if (screenId === "screen-lobby") {
+    initLobby();
+  }
 }
 
 export function goHome() {
@@ -27,6 +31,7 @@ export function goAgentSettings() {
 
 export function goLobby() {
   showScreen("screen-lobby");
+  initLobby();
 }
 
 export function goStageSelect() {
