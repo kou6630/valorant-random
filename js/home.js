@@ -3,7 +3,7 @@
 import { showScreen } from "./app.js";
 import { initLobby } from "./lobby.js";
 import { db } from "./firebase.js";
-import { ref, get, set } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+import { ref, get, set, remove } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 let joinBusy = false;
 
@@ -15,6 +15,22 @@ const openSettingsBtn = document.getElementById("openAgentSettingsBtn");
 
 const NAME_KEY = "valorant_random_name";
 const PASS_KEY = "valorant_random_pass";
+
+function isEmptyRoom(data) {
+  const players = data?.players || {};
+  const spectators = data?.spectators || {};
+  return Object.keys(players).length === 0 && Object.keys(spectators).length === 0;
+}
+
+async function cleanupExpiredEmptyRoom(roomRef, roomData) {
+  const expiresAt = Number(roomData?.expiresAt || 0);
+  if (expiresAt <= 0) return false;
+  if (Date.now() < expiresAt) return false;
+  if (!isEmptyRoom(roomData)) return false;
+
+  await remove(roomRef);
+  return true;
+}
 
 function loadLocal() {
   const savedName = localStorage.getItem(NAME_KEY);
@@ -57,7 +73,14 @@ async function joinRoom() {
     saveLocal();
 
     const roomRef = ref(db, `rooms/${pass}`);
-    const snap = await get(roomRef);
+    let snap = await get(roomRef);
+
+    if (snap.exists()) {
+      const removed = await cleanupExpiredEmptyRoom(roomRef, snap.val());
+      if (removed) {
+        snap = await get(roomRef);
+      }
+    }
 
     if (!snap.exists()) {
       await set(roomRef, {
