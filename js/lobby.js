@@ -75,8 +75,8 @@ export async function initLobby() {
   const activePlayerCount = getActivePlayerCount(players);
   const activeSpectatorCount = getActiveSpectatorCount(spectators);
 
-  const existingPlayer = findEntryByClientId(players, clientId);
-  const existingSpectator = findEntryByClientId(spectators, clientId);
+  const existingPlayer = findEntryByClientId(players, clientId, isActivePlayerEntry);
+  const existingSpectator = findEntryByClientId(spectators, clientId, isActiveSpectatorEntry);
 
   if (existingPlayer) {
     isPlayer = true;
@@ -178,8 +178,8 @@ function getClientId() {
   return clientId;
 }
 
-function findEntryByClientId(entries, clientId) {
-  return Object.values(entries).find(entry => entry.clientId === clientId) || null;
+function findEntryByClientId(entries, clientId, isActive = () => true) {
+  return Object.values(entries).find(entry => entry.clientId === clientId && isActive(entry)) || null;
 }
 
 function isActivePlayerEntry(entry) {
@@ -196,6 +196,10 @@ function getActivePlayerCount(entries) {
 
 function getActiveSpectatorCount(entries) {
   return Object.values(entries || {}).filter(isActiveSpectatorEntry).length;
+}
+
+function isEffectivelyEmptyRoom(players, spectators) {
+  return getActivePlayerCount(players) === 0 && getActiveSpectatorCount(spectators) === 0;
 }
 
 function bindDisconnect(targetRef, type, roomState = "lobby") {
@@ -270,12 +274,12 @@ async function ensureRoomIntegrity(data) {
     }
   }
 
-  const validOwnerId = getValidOwnerId(data.owner, players, spectators);
-
-  if (!validOwnerId && Object.keys(players).length === 0 && Object.keys(spectators).length === 0) {
+  if (isEffectivelyEmptyRoom(players, spectators)) {
     await remove(roomRef).catch(() => {});
     return;
   }
+
+  const validOwnerId = getValidOwnerId(data.owner, players, spectators);
 
   if (validOwnerId !== (data.owner || "")) {
     await update(roomRef, { owner: validOwnerId || null }).catch(() => {});
@@ -639,7 +643,7 @@ window.addEventListener("pagehide", async () => {
       delete nextSpectators[playerId];
     }
 
-    if (Object.keys(nextPlayers).length === 0 && Object.keys(nextSpectators).length === 0) {
+    if (isEffectivelyEmptyRoom(nextPlayers, nextSpectators)) {
       await remove(roomRef);
       return;
     }
