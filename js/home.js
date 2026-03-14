@@ -5,6 +5,8 @@ import { initLobby } from "./lobby.js";
 import { db } from "./firebase.js";
 import { ref, get, set } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
+let joinBusy = false;
+
 const nameInput = document.getElementById("playerName");
 const passInput = document.getElementById("roomPass");
 
@@ -18,16 +20,18 @@ function loadLocal() {
   const savedName = localStorage.getItem(NAME_KEY);
   const savedPass = localStorage.getItem(PASS_KEY);
 
-  if (savedName) nameInput.value = savedName;
-  if (savedPass) passInput.value = savedPass;
+  if (savedName && nameInput) nameInput.value = savedName;
+  if (savedPass && passInput) passInput.value = savedPass;
 }
 
 function saveLocal() {
-  localStorage.setItem(NAME_KEY, nameInput.value);
-  localStorage.setItem(PASS_KEY, passInput.value);
+  if (nameInput) localStorage.setItem(NAME_KEY, nameInput.value);
+  if (passInput) localStorage.setItem(PASS_KEY, passInput.value);
 }
 
 async function joinRoom() {
+  if (joinBusy || !nameInput || !passInput) return;
+
   const name = nameInput.value.trim();
   const pass = passInput.value.trim();
 
@@ -41,28 +45,43 @@ async function joinRoom() {
     return;
   }
 
-  saveLocal();
-
-  const roomRef = ref(db, `rooms/${pass}`);
-  const snap = await get(roomRef);
-
-  if (!snap.exists()) {
-    await set(roomRef, {
-      createdAt: Date.now(),
-      state: "lobby"
-    });
+  if (pass.length > 10) {
+    alert("合言葉は10文字以内です");
+    return;
   }
 
-  window.currentRoom = pass;
-  window.playerName = name;
+  joinBusy = true;
+  if (joinBtn) joinBtn.disabled = true;
 
-  showScreen("screen-lobby");
-  initLobby();
+  try {
+    saveLocal();
+
+    const roomRef = ref(db, `rooms/${pass}`);
+    const snap = await get(roomRef);
+
+    if (!snap.exists()) {
+      await set(roomRef, {
+        createdAt: Date.now(),
+        state: "lobby"
+      });
+    }
+
+    window.currentRoom = pass;
+    window.playerName = name;
+
+    showScreen("screen-lobby");
+    await initLobby();
+  } catch {
+    alert("入室に失敗しました");
+  } finally {
+    joinBusy = false;
+    if (joinBtn) joinBtn.disabled = false;
+  }
 }
 
-joinBtn.addEventListener("click", joinRoom);
+joinBtn?.addEventListener("click", joinRoom);
 
-openSettingsBtn.addEventListener("click", () => {
+openSettingsBtn?.addEventListener("click", () => {
   showScreen("screen-agent-settings");
 });
 

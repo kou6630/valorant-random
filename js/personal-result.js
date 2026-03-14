@@ -2,6 +2,7 @@
 
 import { db } from "./firebase.js";
 import { showScreen } from "./app.js";
+import { initAllResults } from "./all-results.js";
 import { ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const personalAgentImage = document.getElementById("personalAgentImage");
@@ -18,6 +19,7 @@ export function initPersonalResult(roomId, playerId, spectator = false) {
   isSpectator = spectator;
 
   if (isSpectator) {
+    initAllResults(roomId, playerId, window.currentOwnerId || "");
     showScreen("screen-all-results");
     return;
   }
@@ -37,5 +39,6 @@ export function initPersonalResult(roomId, playerId, spectator = false) {
 }
 
 toAllResultsBtn.addEventListener("click", () => {
+  initAllResults(currentRoomId, currentPlayerId, window.currentOwnerId || "");
   showScreen("screen-all-results");
 });

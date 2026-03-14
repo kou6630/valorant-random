@@ -1,6 +1,7 @@
 // js/all-results.js
 
 import { db } from "./firebase.js";
+import { showScreen } from "./app.js";
 import { ref, onValue, update } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const resultsArea = document.getElementById("allResultsList");
@@ -16,7 +17,7 @@ export function initAllResults(roomId, userId, ownerId) {
   currentUserId = userId;
   isOwner = userId === ownerId;
 
-  if (!isOwner) rerollBtn.style.display = "none";
+  rerollBtn.style.display = isOwner ? "" : "none";
 
   const resultsRef = ref(db, `rooms/${roomId}/results`);
 
@@ -59,6 +60,5 @@ rerollBtn.addEventListener("click", async () => {
 });
 
 backBtn.addEventListener("click", () => {
-  document.getElementById("screen-all-results").classList.remove("active");
-  document.getElementById("screen-lobby").classList.add("active");
+  showScreen("screen-lobby");
 });

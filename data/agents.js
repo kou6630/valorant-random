@@ -27,7 +27,7 @@ export const AGENTS = [
   { id: "skye", name: "スカイ", role: "initiator" },
   { id: "sova", name: "ソーヴァ", role: "initiator" },
   { id: "tejo", name: "テホ", role: "initiator" },
-  { id: "veto", name: "ヴェト", role: "sentinel" },
+  { id: "veto", name: "ヴィト", role: "sentinel" },
   { id: "viper", name: "ヴァイパー", role: "controller" },
   { id: "vyse", name: "ヴァイス", role: "sentinel" },
   { id: "waylay", name: "ウェイレイ", role: "duelist" },

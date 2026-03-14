@@ -18,6 +18,7 @@ export const AGENT_COMPS = [
   { id: "comp12", name: "構成12" },
   { id: "comp13", name: "構成13" },
   { id: "comp14", name: "構成14" },
-  { id: "comp15", name: "構成15" }
+  { id: "comp15", name: "構成15" },
+  { id: "comp16", name: "構成16" }
 
 ];
