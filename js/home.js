@@ -16,17 +16,18 @@ const openSettingsBtn = document.getElementById("openAgentSettingsBtn");
 const NAME_KEY = "valorant_random_name";
 const PASS_KEY = "valorant_random_pass";
 
-function isEmptyRoom(data) {
-  const players = data?.players || {};
-  const spectators = data?.spectators || {};
-  return Object.keys(players).length === 0 && Object.keys(spectators).length === 0;
+function isEffectivelyEmptyRoom(data) {
+  const players = Object.values(data?.players || {});
+  const spectators = Object.values(data?.spectators || {});
+
+  const hasActivePlayer = players.some(player => player && player.connected !== false && !player.isCpu);
+  const hasActiveSpectator = spectators.some(spectator => spectator && spectator.connected !== false);
+
+  return !hasActivePlayer && !hasActiveSpectator;
 }
 
-async function cleanupExpiredEmptyRoom(roomRef, roomData) {
-  const expiresAt = Number(roomData?.expiresAt || 0);
-  if (expiresAt <= 0) return false;
-  if (Date.now() < expiresAt) return false;
-  if (!isEmptyRoom(roomData)) return false;
+async function cleanupEmptyRoom(roomRef, roomData) {
+  if (!isEffectivelyEmptyRoom(roomData)) return false;
 
   await remove(roomRef);
   return true;
@@ -76,7 +77,7 @@ async function joinRoom() {
     let snap = await get(roomRef);
 
     if (snap.exists()) {
-      const removed = await cleanupExpiredEmptyRoom(roomRef, snap.val());
+      const removed = await cleanupEmptyRoom(roomRef, snap.val());
       if (removed) {
         snap = await get(roomRef);
       }
