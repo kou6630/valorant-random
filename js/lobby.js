@@ -72,6 +72,9 @@ export async function initLobby() {
     return;
   }
 
+  const activePlayerCount = getActivePlayerCount(players);
+  const activeSpectatorCount = getActiveSpectatorCount(spectators);
+
   const existingPlayer = findEntryByClientId(players, clientId);
   const existingSpectator = findEntryByClientId(spectators, clientId);
 
@@ -99,7 +102,7 @@ export async function initLobby() {
     });
 
     bindDisconnect(ref(db, `rooms/${roomId}/spectators/${playerId}`), "spectator");
-  } else if (roomState === "lobby" && Object.keys(players).length < MAX_PLAYERS) {
+  } else if (roomState === "lobby" && activePlayerCount < MAX_PLAYERS) {
     isPlayer = true;
 
     const newPlayerRef = push(ref(db, `rooms/${roomId}/players`));
@@ -118,7 +121,7 @@ export async function initLobby() {
     await update(roomRef, { expiresAt: Date.now() + ROOM_TTL_MS });
 
     bindDisconnect(newPlayerRef, "player", roomState);
-  } else if (Object.keys(spectators).length < MAX_SPECTATORS) {
+  } else if (activeSpectatorCount < MAX_SPECTATORS) {
     isPlayer = false;
 
     const newSpectatorRef = push(ref(db, `rooms/${roomId}/spectators`));
@@ -177,6 +180,22 @@ function getClientId() {
 
 function findEntryByClientId(entries, clientId) {
   return Object.values(entries).find(entry => entry.clientId === clientId) || null;
+}
+
+function isActivePlayerEntry(entry) {
+  return !!entry && entry.connected !== false && !entry.isCpu;
+}
+
+function isActiveSpectatorEntry(entry) {
+  return !!entry && entry.connected !== false;
+}
+
+function getActivePlayerCount(entries) {
+  return Object.values(entries || {}).filter(isActivePlayerEntry).length;
+}
+
+function getActiveSpectatorCount(entries) {
+  return Object.values(entries || {}).filter(isActiveSpectatorEntry).length;
 }
 
 function bindDisconnect(targetRef, type, roomState = "lobby") {
@@ -414,7 +433,7 @@ async function moveSelfToSpectator(roomData) {
   if (!isPlayer || isOwner) return;
 
   const spectators = roomData.spectators || {};
-  if (Object.keys(spectators).length >= MAX_SPECTATORS) {
+  if (getActiveSpectatorCount(spectators) >= MAX_SPECTATORS) {
     alert("観戦枠が満員です");
     return;
   }
@@ -450,7 +469,7 @@ async function moveSelfToPlayer(roomData) {
   if (isPlayer) return;
 
   const players = roomData.players || {};
-  if (Object.keys(players).length >= MAX_PLAYERS) {
+  if (getActivePlayerCount(players) >= MAX_PLAYERS) {
     alert("参加枠が満員です");
     return;
   }
