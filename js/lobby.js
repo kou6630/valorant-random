@@ -270,7 +270,16 @@ async function ensureRoomIntegrity(data) {
         ...stalePlayers.map(player => remove(ref(db, `rooms/${roomId}/players/${player.id}`)).catch(() => {})),
         ...staleSpectators.map(spectator => remove(ref(db, `rooms/${roomId}/spectators/${spectator.id}`)).catch(() => {}))
       ]);
-      return;
+
+      const latestSnap = await get(roomRef).catch(() => null);
+      const latestData = latestSnap?.val?.() || null;
+      const latestPlayers = latestData?.players || {};
+      const latestSpectators = latestData?.spectators || {};
+
+      if (!latestData || isEffectivelyEmptyRoom(latestPlayers, latestSpectators)) {
+        await remove(roomRef).catch(() => {});
+        return;
+      }
     }
   }
 
@@ -591,17 +600,11 @@ stageBtn?.addEventListener("click", () => {
   initStageSelect(roomId, window.currentOwnerId || playerId, playerId);
 });
 
-window.addEventListener("pagehide", async () => {
+async function handleLeaveRoom() {
   if (!roomId || !playerId) return;
 
   try {
     const roomRef = ref(db, `rooms/${roomId}`);
-    const selfRef = ref(
-      db,
-      isPlayer
-        ? `rooms/${roomId}/players/${playerId}`
-        : `rooms/${roomId}/spectators/${playerId}`
-    );
     const roomSnap = await get(roomRef);
     const roomData = roomSnap.val();
 
@@ -653,5 +656,19 @@ window.addEventListener("pagehide", async () => {
       await update(roomRef, { owner: nextOwnerId || null });
     }
   } catch {
+  }
+}
+
+window.addEventListener("pagehide", () => {
+  handleLeaveRoom();
+});
+
+window.addEventListener("beforeunload", () => {
+  handleLeaveRoom();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    handleLeaveRoom();
   }
 });
