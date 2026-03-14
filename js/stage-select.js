@@ -26,6 +26,13 @@ let watchBound = false;
 let watchedRoomId = null;
 let unwatchStage = null;
 
+function applyOwnerControls() {
+  if (stageSelect) stageSelect.disabled = !isOwner;
+  if (roleCompSelect) roleCompSelect.disabled = !isOwner;
+  if (startBtn) startBtn.disabled = !isOwner;
+  if (randomRoleBtn) randomRoleBtn.disabled = !isOwner;
+}
+
 export function initStageSelect(currentRoom, ownerId, myId) {
 
   roomId = currentRoom;
@@ -36,8 +43,7 @@ export function initStageSelect(currentRoom, ownerId, myId) {
   renderStages();
   renderRoleComps();
 
-  startBtn.disabled = !isOwner;
-  randomRoleBtn.disabled = !isOwner;
+  applyOwnerControls();
 
   if (isOwner) {
     update(ref(db, `rooms/${roomId}`), {
@@ -104,8 +110,7 @@ function watchStageData() {
     }
 
     isOwner = (data.owner || "") === (window.currentPlayerId || "");
-    startBtn.disabled = !isOwner;
-    randomRoleBtn.disabled = !isOwner;
+    applyOwnerControls();
 
   });
 }

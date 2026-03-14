@@ -28,6 +28,7 @@ const lobbyOwnerText = document.getElementById("lobbyOwnerName");
 const CLIENT_ID_KEY = "valorant_random_client_id";
 const MAX_PLAYERS = 5;
 const MAX_SPECTATORS = 5;
+const ROOM_TTL_MS = 10 * 60 * 1000;
 
 let roomId = null;
 let playerId = null;
@@ -63,6 +64,13 @@ export async function initLobby() {
   const players = roomData.players || {};
   const spectators = roomData.spectators || {};
   const roomState = roomData.state || "lobby";
+  const expiresAt = Number(roomData.expiresAt || 0);
+
+  if (expiresAt > 0 && Date.now() >= expiresAt) {
+    await remove(roomRef).catch(() => {});
+    showScreen("screen-home");
+    return;
+  }
 
   const existingPlayer = findEntryByClientId(players, clientId);
   const existingSpectator = findEntryByClientId(spectators, clientId);
@@ -107,6 +115,8 @@ export async function initLobby() {
       joinedAt: Date.now()
     });
 
+    await update(roomRef, { expiresAt: Date.now() + ROOM_TTL_MS });
+
     bindDisconnect(newPlayerRef, "player", roomState);
   } else if (Object.keys(spectators).length < MAX_SPECTATORS) {
     isPlayer = false;
@@ -121,6 +131,8 @@ export async function initLobby() {
       connected: true,
       joinedAt: Date.now()
     });
+
+    await update(roomRef, { expiresAt: Date.now() + ROOM_TTL_MS });
 
     bindDisconnect(newSpectatorRef, "spectator");
   } else {
@@ -219,14 +231,22 @@ async function ensureRoomIntegrity(data) {
   const players = data.players || {};
   const spectators = data.spectators || {};
   const roomState = data.state || "lobby";
+  const expiresAt = Number(data.expiresAt || 0);
+
+  if (expiresAt > 0 && Date.now() >= expiresAt) {
+    await remove(roomRef).catch(() => {});
+    return;
+  }
 
   if (roomState === "lobby") {
     const stalePlayers = Object.values(players).filter(player => player?.connected === false || player?.isCpu);
+    const staleSpectators = Object.values(spectators).filter(spectator => spectator?.connected === false);
 
-    if (stalePlayers.length > 0) {
-      await Promise.all(
-        stalePlayers.map(player => remove(ref(db, `rooms/${roomId}/players/${player.id}`)).catch(() => {}))
-      );
+    if (stalePlayers.length > 0 || staleSpectators.length > 0) {
+      await Promise.all([
+        ...stalePlayers.map(player => remove(ref(db, `rooms/${roomId}/players/${player.id}`)).catch(() => {})),
+        ...staleSpectators.map(spectator => remove(ref(db, `rooms/${roomId}/spectators/${spectator.id}`)).catch(() => {}))
+      ]);
       return;
     }
   }
@@ -559,8 +579,6 @@ window.addEventListener("pagehide", async () => {
         ? `rooms/${roomId}/players/${playerId}`
         : `rooms/${roomId}/spectators/${playerId}`
     );
-
-    await onDisconnect(selfRef).cancel().catch(() => {});
     const roomSnap = await get(roomRef);
     const roomData = roomSnap.val();
 
