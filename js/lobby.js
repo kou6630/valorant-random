@@ -663,12 +663,4 @@ window.addEventListener("pagehide", () => {
   handleLeaveRoom();
 });
 
-window.addEventListener("beforeunload", () => {
-  handleLeaveRoom();
-});
 
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "hidden") {
-    handleLeaveRoom();
-  }
-});
