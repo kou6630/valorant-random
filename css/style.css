@@ -111,11 +111,33 @@ button:disabled{
 }
 
 .agent-item{
+  width:100%;
   background:#11151c;
   border:1px solid #2f3644;
   border-radius:12px;
   padding:12px;
   text-align:center;
+}
+
+.agent-item.is-locked{
+  opacity:.65;
+}
+
+.agent-item.is-locked img{
+  filter:grayscale(1) brightness(.45);
+}
+
+.agent-item-name{
+  font-size:14px;
+  font-weight:700;
+}
+
+.agent-item[aria-pressed="true"]{
+  border-color:#ff4655;
+}
+
+.agent-item[aria-pressed="false"]{
+  border-color:#394150;
 }
 
 .agent-item img{
@@ -125,12 +147,9 @@ button:disabled{
   border-radius:10px;
   background:#0b0d12;
   margin-bottom:10px;
+  transition:filter .2s ease, opacity .2s ease;
 }
 
-.agent-item label{
-  margin-bottom:8px;
-  font-size:14px;
-}
 
 .lobby-columns{
   display:grid;

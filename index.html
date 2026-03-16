@@ -14,14 +14,14 @@
 
       <div class="panel">
         <label for="playerName">名前</label>
-        <input id="playerName" type="text" maxlength="20" placeholder="名前を入力" />
+        <input id="playerName" type="text" maxlength="20" placeholder="名前を入力" autocomplete="name" spellcheck="false" />
 
         <label for="roomPass">合言葉</label>
-        <input id="roomPass" type="text" maxlength="10" placeholder="合言葉を入力" />
+        <input id="roomPass" type="text" maxlength="10" placeholder="合言葉を入力" autocomplete="off" autocapitalize="off" spellcheck="false" />
 
         <div class="button-group">
-          <button id="joinRoomBtn">ロビー参加</button>
-          <button id="openAgentSettingsBtn">未開放エージェント設定</button>
+          <button id="joinRoomBtn" type="button">ロビー参加</button>
+          <button id="openAgentSettingsBtn" type="button">未開放エージェント設定</button>
         </div>
       </div>
     </section>
@@ -32,9 +32,9 @@
 
       <div class="panel">
         <div class="button-group">
-          <button id="setAllAgentsOwnedBtn">全エージェント持ち</button>
-          <button id="saveAgentSettingsBtn">保存</button>
-          <button id="backToHomeFromSettingsBtn">戻る</button>
+          <button id="setAllAgentsOwnedBtn" type="button">全エージェント持ち</button>
+          <button id="saveAgentSettingsBtn" type="button">保存</button>
+          <button id="backToHomeFromSettingsBtn" type="button">戻る</button>
         </div>
 
         <div id="agentSettingsList" class="agent-grid"></div>
@@ -46,25 +46,20 @@
       <h2>ロビー</h2>
 
       <div class="panel">
-        <p>合言葉: <span id="lobbyRoomPass">-</span></p>
-        <p>オーナー: <span id="lobbyOwnerName">-</span></p>
+        <p>合言葉: <span id="lobbyRoomPass" aria-live="polite">-</span></p>
+        <p>オーナー: <span id="lobbyOwnerName" aria-live="polite">-</span></p>
 
         <div class="lobby-columns">
           <div class="lobby-block">
             <h3>参加者</h3>
-            <ul id="playerList" class="member-list"></ul>
-          </div>
-
-          <div class="lobby-block">
-            <h3>観戦者</h3>
-            <ul id="spectatorList" class="member-list"></ul>
+            <ul id="playerList" class="member-list" aria-live="polite"></ul>
           </div>
         </div>
 
         <div class="button-group">
-          <button id="readyBtn">準備完了</button>
-          <button id="cancelReadyBtn">準備解除</button>
-          <button id="goToStageSelectBtn" disabled>ステージ選択</button>
+          <button id="readyBtn" type="button">準備完了</button>
+          <button id="cancelReadyBtn" type="button">準備解除</button>
+          <button id="goToStageSelectBtn" type="button" disabled>ステージ選択</button>
         </div>
       </div>
     </section>
@@ -81,9 +76,9 @@
         <select id="roleCompSelect"></select>
 
         <div class="button-group">
-          <button id="randomRoleCompBtn">役職割ランダム</button>
-          <button id="startDrawBtn">抽選開始</button>
-          <button id="backToLobbyFromStageBtn">ロビーへ戻る</button>
+          <button id="randomRoleCompBtn" type="button">役職割ランダム</button>
+          <button id="startDrawBtn" type="button">抽選開始</button>
+          <button id="backToLobbyFromStageBtn" type="button">ロビーへ戻る</button>
         </div>
       </div>
     </section>
@@ -93,7 +88,7 @@
       <h2>抽選中...</h2>
 
       <div class="panel center-panel">
-        <div id="drawAnimationArea">3秒演出</div>
+        <div id="drawAnimationArea" aria-live="polite">3秒演出</div>
       </div>
     </section>
 
@@ -102,9 +97,9 @@
       <h2>あなたはこのキャラになりました</h2>
 
       <div class="panel center-panel">
-        <img id="personalAgentImage" src="" alt="agent" class="agent-result-image" />
-        <p id="personalAgentName">-</p>
-        <button id="toAllResultsBtn">全体結果へ</button>
+        <img id="personalAgentImage" src="" alt="agent" class="agent-result-image" loading="lazy" decoding="async" />
+        <p id="personalAgentName" aria-live="polite">-</p>
+        <button id="toAllResultsBtn" type="button">全体結果へ</button>
       </div>
     </section>
 
@@ -113,11 +108,11 @@
       <h2>全体結果</h2>
 
       <div class="panel">
-        <div id="allResultsList" class="results-grid"></div>
+        <div id="allResultsList" class="results-grid" aria-live="polite"></div>
 
         <div class="button-group">
-          <button id="rerollBtn">再抽選</button>
-          <button id="backToLobbyBtn">ロビーへ</button>
+          <button id="rerollBtn" type="button">再抽選</button>
+          <button id="backToLobbyBtn" type="button">ロビーへ</button>
         </div>
       </div>
     </section>
