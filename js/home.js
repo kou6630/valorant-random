@@ -127,10 +127,18 @@ async function joinRoom() {
     window.playerName = name;
     window.playerAgentSettings = loadLocalAgentSettings();
 
-    showScreen("screen-lobby");
     await initLobby();
+
+    if (!window.currentPlayerId) {
+      throw new Error("ロビー参加に失敗しました");
+    }
+
+    showScreen("screen-lobby");
   } catch (error) {
     console.error(error);
+    window.currentRoom = "";
+    window.currentPlayerId = "";
+    window.currentOwnerId = "";
     alert("参加に失敗しました");
     showScreen("screen-home");
   } finally {
