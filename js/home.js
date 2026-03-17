@@ -9,6 +9,12 @@ const MAX_PLAYERS = 5;
 
 let joinBusy = false;
 
+function resetJoinSession() {
+  window.currentRoom = "";
+  window.currentPlayerId = "";
+  window.currentOwnerId = "";
+}
+
 const nameInput = document.getElementById("playerName");
 const passInput = document.getElementById("roomPass");
 
@@ -124,22 +130,22 @@ async function joinRoom() {
     }
 
     window.currentRoom = pass;
+    window.currentPlayerId = "";
+    window.currentOwnerId = "";
     window.playerName = name;
     window.playerAgentSettings = loadLocalAgentSettings();
 
     await initLobby();
 
     if (!window.currentPlayerId) {
-      throw new Error("ロビー参加に失敗しました");
+      throw new Error("ロビー初期化が完了しませんでした");
     }
 
     showScreen("screen-lobby");
   } catch (error) {
     console.error(error);
-    window.currentRoom = "";
-    window.currentPlayerId = "";
-    window.currentOwnerId = "";
-    alert("参加に失敗しました");
+    resetJoinSession();
+    alert(error?.message || "参加に失敗しました");
     showScreen("screen-home");
   } finally {
     joinBusy = false;

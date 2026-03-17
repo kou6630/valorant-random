@@ -37,6 +37,45 @@ let unwatchLobby = null;
 let actionBusy = false;
 let leaveHandled = false;
 
+function resetLobbySession() {
+  playerId = null;
+  isOwner = false;
+  isPlayer = false;
+  leaveHandled = false;
+  window.currentPlayerId = "";
+  window.currentOwnerId = "";
+}
+
+async function reconcileRoomAfterPlayerRemoval(targetRoomId) {
+  if (!targetRoomId) return;
+
+  const roomRef = ref(db, `rooms/${targetRoomId}`);
+  const roomSnap = await get(roomRef).catch(() => null);
+  const roomData = roomSnap?.exists?.() ? roomSnap.val() : null;
+
+  if (!roomData) return;
+
+  const players = roomData.players || {};
+
+  if (isEffectivelyEmptyRoom(players)) {
+    await remove(roomRef).catch(() => {});
+    return;
+  }
+
+  const validOwnerId = getValidOwnerId(roomData.owner, players);
+
+  if (validOwnerId !== (roomData.owner || "")) {
+    await update(roomRef, { owner: validOwnerId || null }).catch(() => {});
+  }
+}
+
+function cleanupLobbyWatcher() {
+  if (typeof unwatchLobby === "function") {
+    unwatchLobby();
+    unwatchLobby = null;
+  }
+}
+
 const PRE_DRAW_STATES = new Set(["lobby", "stage-select"]);
 
 export async function initLobby() {
@@ -51,8 +90,7 @@ export async function initLobby() {
   leaveHandled = false;
 
   if (!roomId || !name) {
-    showScreen("screen-home");
-    return;
+    throw new Error("参加情報が不足しています");
   }
 
   if (lobbyPassText) {
@@ -65,8 +103,7 @@ export async function initLobby() {
     const roomData = roomSnap.exists() ? roomSnap.val() : null;
 
     if (!roomData) {
-      showScreen("screen-home");
-      return;
+      throw new Error("部屋が見つかりません");
     }
 
     const players = roomData.players || {};
@@ -105,9 +142,7 @@ export async function initLobby() {
 
       bindDisconnect(newPlayerRef);
     } else {
-      alert("満員です");
-      showScreen("screen-home");
-      return;
+      throw new Error(roomState !== "lobby" ? "この部屋は開始済みです" : "満員です");
     }
 
     const latestRoomSnap = await get(roomRef);
@@ -133,8 +168,10 @@ export async function initLobby() {
     }
   } catch (error) {
     console.error(error);
-    alert("ロビー参加に失敗しました");
+    cleanupLobbyWatcher();
+    resetLobbySession();
     showScreen("screen-home");
+    throw error;
   }
 }
 
@@ -206,26 +243,10 @@ async function ensureRoomIntegrity(data) {
 
   const roomRef = ref(db, `rooms/${roomId}`);
   const players = data.players || {};
-  const roomState = data.state || "lobby";
-  const activePlayerCount = getActivePlayerCount(players);
-  const peakLobbyPlayerCount = Number(data.peakLobbyPlayerCount || 0);
 
   if (isEffectivelyEmptyRoom(players)) {
     await remove(roomRef).catch(() => {});
     return;
-  }
-
-  if (PRE_DRAW_STATES.has(roomState)) {
-    if (peakLobbyPlayerCount > 0 && activePlayerCount < peakLobbyPlayerCount) {
-      await remove(roomRef).catch(() => {});
-      return;
-    }
-
-    if (activePlayerCount > peakLobbyPlayerCount) {
-      await update(roomRef, { peakLobbyPlayerCount: activePlayerCount }).catch(() => {});
-    }
-  } else if (peakLobbyPlayerCount > 0) {
-    await update(roomRef, { peakLobbyPlayerCount: null }).catch(() => {});
   }
 
   const validOwnerId = getValidOwnerId(data.owner, players);
@@ -256,6 +277,8 @@ function watchLobby() {
   unwatchLobby = onValue(roomRef, (snapshot) => {
     const data = snapshot.val();
     if (!data) {
+      cleanupLobbyWatcher();
+      resetLobbySession();
       showScreen("screen-home");
       return;
     }
@@ -377,7 +400,7 @@ async function transferOwner(targetId) {
   }
 }
 
-async function kickMember(targetId, roomState = "lobby") {
+async function kickMember(targetId) {
   if (!isOwner || !targetId || targetId === playerId) return;
 
   actionBusy = true;
@@ -385,13 +408,8 @@ async function kickMember(targetId, roomState = "lobby") {
   try {
     const targetRef = ref(db, `rooms/${roomId}/players/${targetId}`);
     await onDisconnect(targetRef).cancel().catch(() => {});
-
-    if (PRE_DRAW_STATES.has(roomState)) {
-      await remove(ref(db, `rooms/${roomId}`));
-      return;
-    }
-
-    await remove(targetRef);
+    await remove(targetRef).catch(() => {});
+    await reconcileRoomAfterPlayerRemoval(roomId);
   } finally {
     actionBusy = false;
   }
@@ -424,17 +442,12 @@ async function handleLeaveRoom() {
   leaveHandled = true;
 
   try {
-    const roomRef = ref(db, `rooms/${roomId}`);
-    const roomSnap = await get(roomRef);
-    const roomData = roomSnap.exists() ? roomSnap.val() : null;
-    const roomState = roomData?.state || "lobby";
+    const currentRoomId = roomId;
+    const targetRef = ref(db, `rooms/${currentRoomId}/players/${playerId}`);
 
-    if (PRE_DRAW_STATES.has(roomState)) {
-      await remove(roomRef).catch(() => {});
-      return;
-    }
-
-    await remove(ref(db, `rooms/${roomId}/players/${playerId}`)).catch(() => {});
+    await onDisconnect(targetRef).cancel().catch(() => {});
+    await remove(targetRef).catch(() => {});
+    await reconcileRoomAfterPlayerRemoval(currentRoomId);
   } catch {
   }
 }
