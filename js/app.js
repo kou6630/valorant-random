@@ -11,7 +11,8 @@ import { ref, onValue, off } from "https://www.gstatic.com/firebasejs/12.2.1/fir
 
 let watchedRoomId = null;
 let stateBound = false;
-let roomWatchPollTimer = null;
+let roomStatePropertyBound = false;
+let internalCurrentRoom = "";
 let lastRoomState = null;
 let currentRoomRef = null;
 let currentRoomCallback = null;
@@ -110,7 +111,7 @@ async function handleRoomState(data) {
   }
 }
 
-function resetRoomWatchState() {
+function detachRoomWatcher() {
   if (currentRoomRef && currentRoomCallback) {
     off(currentRoomRef, "value", currentRoomCallback);
   }
@@ -119,17 +120,25 @@ function resetRoomWatchState() {
   lastRoomState = null;
   currentRoomRef = null;
   currentRoomCallback = null;
+}
+
+function resetRoomWatchState() {
+  detachRoomWatcher();
+  internalCurrentRoom = "";
   window.currentRoom = "";
   window.currentOwnerId = "";
   window.currentPlayerId = "";
 }
 
 function attachRoomWatcher(roomId) {
-  if (!roomId || roomId === watchedRoomId) return;
-
-  if (currentRoomRef && currentRoomCallback) {
-    off(currentRoomRef, "value", currentRoomCallback);
+  if (!roomId) {
+    detachRoomWatcher();
+    return;
   }
+
+  if (roomId === watchedRoomId && currentRoomRef && currentRoomCallback) return;
+
+  detachRoomWatcher();
 
   watchedRoomId = roomId;
   lastRoomState = null;
@@ -152,22 +161,30 @@ function attachRoomWatcher(roomId) {
 function bindRoomStateWatcher() {
   if (stateBound) return;
 
-  roomWatchPollTimer = window.setInterval(() => {
-    const roomId = window.currentRoom || "";
+  internalCurrentRoom = String(window.currentRoom || "");
 
-    if (!roomId) {
-      if (watchedRoomId && currentRoomRef && currentRoomCallback) {
-        off(currentRoomRef, "value", currentRoomCallback);
-        watchedRoomId = null;
-        lastRoomState = null;
-        currentRoomRef = null;
-        currentRoomCallback = null;
+  if (!roomStatePropertyBound) {
+    Object.defineProperty(window, "currentRoom", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return internalCurrentRoom;
+      },
+      set(value) {
+        const nextRoomId = String(value || "");
+        if (nextRoomId === internalCurrentRoom) return;
+
+        internalCurrentRoom = nextRoomId;
+        attachRoomWatcher(nextRoomId);
       }
-      return;
-    }
+    });
 
-    attachRoomWatcher(roomId);
-  }, 300);
+    roomStatePropertyBound = true;
+  }
+
+  if (internalCurrentRoom) {
+    attachRoomWatcher(internalCurrentRoom);
+  }
 
   stateBound = true;
 }
