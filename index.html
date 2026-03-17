@@ -83,12 +83,12 @@
       </div>
     </section>
 
-    <!-- 抽選演出画面 -->
+    <!-- 個人演出画面 -->
     <section id="screen-draw" class="screen">
-      <h2>抽選中...</h2>
+      <h2>個人演出</h2>
 
       <div class="panel center-panel">
-        <div id="drawAnimationArea" aria-live="polite">3秒演出</div>
+        <div id="drawAnimationArea" aria-live="polite">確定結果を演出表示します</div>
       </div>
     </section>
 
@@ -99,7 +99,8 @@
       <div class="panel center-panel">
         <img id="personalAgentImage" src="" alt="agent" class="agent-result-image" loading="lazy" decoding="async" />
         <p id="personalAgentName" aria-live="polite">-</p>
-        <button id="toAllResultsBtn" type="button">全体結果へ</button>
+        <p id="personalResultAutoText">このあと自動で全体結果へ移動します</p>
+        <button id="toAllResultsBtn" type="button" hidden aria-hidden="true" tabindex="-1">全体結果へ</button>
       </div>
     </section>
 

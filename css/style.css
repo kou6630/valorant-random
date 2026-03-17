@@ -180,13 +180,91 @@ button:disabled{
 }
 
 #drawAnimationArea{
-  min-height:180px;
+  min-height:220px;
   display:flex;
   align-items:center;
   justify-content:center;
+  padding:28px 24px;
   font-size:34px;
   font-weight:700;
   letter-spacing:.04em;
+  line-height:1.5;
+  white-space:pre-line;
+  text-align:center;
+  border-radius:20px;
+  border:1px solid #3a4252;
+  background:
+    radial-gradient(circle at top, rgba(255,70,85,0.18), transparent 48%),
+    linear-gradient(180deg, #171b23 0%, #0d1016 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.03),
+    0 18px 48px rgba(0,0,0,0.34);
+  text-shadow:
+    0 0 18px rgba(255,70,85,0.32),
+    0 0 32px rgba(255,255,255,0.08);
+  animation:drawPulse 1.2s ease-in-out infinite;
+}
+
+#screen-draw .center-panel{
+  position:relative;
+  overflow:hidden;
+}
+
+#screen-draw .center-panel::before{
+  content:"";
+  position:absolute;
+  inset:-20%;
+  background:radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 58%);
+  opacity:.5;
+  pointer-events:none;
+  animation:drawCamera 2.8s ease-in-out infinite;
+}
+
+#screen-draw h2{
+  letter-spacing:.08em;
+}
+
+#personalAgentName{
+  font-size:28px;
+  font-weight:800;
+  letter-spacing:.04em;
+}
+
+#personalResultAutoText{
+  color:#b8c0d4;
+  font-size:14px;
+  margin-top:-4px;
+}
+
+#personalResultAutoText[hidden]{
+  display:none;
+}
+
+@keyframes drawPulse{
+  0%{
+    transform:scale(1);
+  }
+  50%{
+    transform:scale(1.02);
+  }
+  100%{
+    transform:scale(1);
+  }
+}
+
+@keyframes drawCamera{
+  0%{
+    transform:translate3d(-2%, -1%, 0) scale(1);
+  }
+  35%{
+    transform:translate3d(1.5%, 1%, 0) scale(1.04);
+  }
+  70%{
+    transform:translate3d(-1%, 1.5%, 0) scale(1.02);
+  }
+  100%{
+    transform:translate3d(-2%, -1%, 0) scale(1);
+  }
 }
 
 .agent-result-image{
@@ -251,7 +329,12 @@ button:disabled{
   }
 
   #drawAnimationArea{
-    min-height:140px;
+    min-height:180px;
+    padding:22px 18px;
     font-size:28px;
+  }
+
+  #personalAgentName{
+    font-size:24px;
   }
 }

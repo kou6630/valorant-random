@@ -26,6 +26,11 @@ const screens = [
   "screen-all-results"
 ];
 
+const RESULT_SCREENS = new Set([
+  "screen-personal-result",
+  "screen-all-results"
+]);
+
 export async function showScreen(screenId) {
   if (screenId === "screen-agent-settings") {
     await ensureAgentSettingsModule();
@@ -93,7 +98,10 @@ async function handleRoomState(data) {
   }
 
   if (state === "result") {
-    if (["screen-personal-result", "screen-all-results"].includes(getActiveScreenId())) return;
+    const activeScreenId = getActiveScreenId();
+
+    if (RESULT_SCREENS.has(activeScreenId)) return;
+    if (activeScreenId === "screen-draw") return;
 
     const myId = window.currentPlayerId || "";
     const { initPersonalResult } = await import("./personal-result.js");

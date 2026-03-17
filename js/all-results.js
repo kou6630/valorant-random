@@ -2,7 +2,7 @@
 
 import { db } from "./firebase.js";
 import { showScreen } from "./app.js";
-import { ref, onValue, update, off, remove } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+import { ref, onValue, update, off, remove, get } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const resultsArea = document.getElementById("allResultsList");
 const rerollBtn = document.getElementById("rerollBtn");
@@ -14,6 +14,7 @@ let isOwner = false;
 let resultsRef = null;
 let resultsCallback = null;
 let rerollBusy = false;
+let backBusy = false;
 
 function cleanupResultsWatcher() {
   if (resultsRef && resultsCallback) {
@@ -32,6 +33,10 @@ export function initAllResults(roomId, userId, ownerId) {
   if (rerollBtn) {
     rerollBtn.style.display = isOwner ? "" : "none";
     rerollBtn.disabled = false;
+  }
+
+  if (backBtn) {
+    backBtn.disabled = false;
   }
 
   cleanupResultsWatcher();
@@ -75,6 +80,21 @@ function renderResults(data) {
   });
 }
 
+function buildLobbyPlayerReset(players) {
+  const nextPlayers = {};
+
+  Object.entries(players || {}).forEach(([id, player]) => {
+    if (!player || player.connected === false) return;
+
+    nextPlayers[id] = {
+      ...player,
+      ready: false
+    };
+  });
+
+  return nextPlayers;
+}
+
 rerollBtn?.addEventListener("click", async () => {
   if (!isOwner || !currentRoom || rerollBusy) return;
 
@@ -99,7 +119,40 @@ rerollBtn?.addEventListener("click", async () => {
   }
 });
 
-backBtn?.addEventListener("click", () => {
-  cleanupResultsWatcher();
-  showScreen("screen-lobby");
+backBtn?.addEventListener("click", async () => {
+  if (!currentRoom || backBusy) return;
+
+  backBusy = true;
+  backBtn.disabled = true;
+
+  try {
+    if (isOwner) {
+      const roomRef = ref(db, `rooms/${currentRoom}`);
+      const roomSnap = await get(roomRef);
+      const roomData = roomSnap.exists() ? roomSnap.val() : null;
+
+      if (roomData) {
+        await remove(ref(db, `rooms/${currentRoom}/results`));
+        await update(roomRef, {
+          state: "lobby",
+          stage: null,
+          roleComp: null,
+          selectedComp: null,
+          selectedRoleComp: null,
+          selectedStage: null,
+          players: buildLobbyPlayerReset(roomData.players || {}),
+          peakLobbyPlayerCount: Object.keys(buildLobbyPlayerReset(roomData.players || {})).length
+        });
+      }
+    }
+
+    cleanupResultsWatcher();
+    showScreen("screen-lobby");
+  } catch (error) {
+    console.error(error);
+    alert("ロビー復帰に失敗しました");
+  } finally {
+    backBusy = false;
+    if (backBtn) backBtn.disabled = false;
+  }
 });

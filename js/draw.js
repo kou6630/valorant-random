@@ -17,9 +17,14 @@ const drawArea = document.getElementById("drawAnimationArea");
 
 let drawTimer = null;
 let frameTimer = null;
+let decideTimer = null;
 let drawBusy = false;
 const AGENT_SETTINGS_KEY = "valorant_agent_settings";
 const LEGACY_AGENT_SETTINGS_KEY = "agentUnlockSettings";
+const DRAW_DURATION_MS = 3000;
+const DECIDE_TIME_MS = 2400;
+const PERSONAL_RESULT_HOLD_MS = 2000;
+const DRAW_EFFECTS = ["slot", "card", "roulette", "glitch", "shuffle"];
 
 function pickRandom(list) {
   if (!Array.isArray(list) || list.length === 0) return null;
@@ -145,6 +150,223 @@ function pickValidComp(compList, orderedPlayers, ownerId) {
   return pickRandom(candidates);
 }
 
+function clearDrawTimers() {
+  clearTimeout(drawTimer);
+  clearTimeout(decideTimer);
+  clearInterval(frameTimer);
+  drawTimer = null;
+  decideTimer = null;
+  frameTimer = null;
+}
+
+function wait(ms) {
+  return new Promise(resolve => {
+    const timer = setTimeout(resolve, ms);
+    drawTimer = timer;
+  });
+}
+
+function getEffectType(playerId) {
+  const source = String(playerId || "");
+  let total = 0;
+
+  for (let i = 0; i < source.length; i++) {
+    total += source.charCodeAt(i);
+  }
+
+  return DRAW_EFFECTS[total % DRAW_EFFECTS.length] || DRAW_EFFECTS[0];
+}
+
+function getAgentNamesPool(excludeName = "") {
+  return shuffle(
+    AGENTS
+      .map(agent => agent?.name || "")
+      .filter(name => !!name && name !== excludeName)
+  );
+}
+
+function buildFakeSequence(confirmedName, effectType) {
+  const pool = getAgentNamesPool(confirmedName);
+
+  if (effectType === "card") {
+    return [...pool.slice(0, 6), confirmedName];
+  }
+
+  if (effectType === "glitch") {
+    return [...pool.slice(0, 8), confirmedName, confirmedName];
+  }
+
+  if (effectType === "shuffle") {
+    return [...pool.slice(0, 9), confirmedName];
+  }
+
+  if (effectType === "roulette") {
+    return [...pool.slice(0, 10), confirmedName];
+  }
+
+  return [...pool.slice(0, 10), confirmedName, confirmedName];
+}
+
+function formatEffectText(effectType) {
+  if (effectType === "slot") return "スロット式";
+  if (effectType === "card") return "カードめくり式";
+  if (effectType === "roulette") return "ルーレット式";
+  if (effectType === "glitch") return "グリッチ式";
+  return "シャッフル式";
+}
+
+function renderDrawFrame(effectType, agentName, isDecided = false, phase = "play") {
+  if (!drawArea) return;
+
+  drawArea.dataset.effect = effectType || "slot";
+  drawArea.dataset.phase = phase;
+  drawArea.dataset.decided = isDecided ? "true" : "false";
+
+  let displayName = agentName || "-";
+
+  if (phase === "play") {
+    if (effectType === "slot") displayName = `│ ${displayName} │`;
+    else if (effectType === "card") displayName = `【 ${displayName} 】`;
+    else if (effectType === "roulette") displayName = `◯ ${displayName} ◯`;
+    else if (effectType === "glitch") displayName = `# ${displayName} #`;
+    else displayName = `→ ${displayName} ←`;
+  }
+
+  const lines = [
+    formatEffectText(effectType),
+    displayName
+  ];
+
+  if (isDecided) {
+    lines.push("決定！");
+  }
+
+  drawArea.textContent = lines.join("\n");
+}
+
+async function waitForConfirmedResult(roomId, myPlayerId) {
+  for (let i = 0; i < 50; i++) {
+    const roomSnap = await get(ref(db, `rooms/${roomId}`));
+    if (!roomSnap.exists()) {
+      return null;
+    }
+
+    const roomData = roomSnap.val() || {};
+    const result = roomData.results?.[myPlayerId] || null;
+    if (result) {
+      return result;
+    }
+
+    if (roomData.state === "lobby") {
+      return null;
+    }
+
+    await wait(100);
+  }
+
+  return null;
+}
+
+async function ensureConfirmedResult(roomId, myPlayerId, ownerId) {
+  const roomRef = ref(db, `rooms/${roomId}`);
+  const roomSnap = await get(roomRef);
+  const roomData = roomSnap.val();
+  if (!roomData) return null;
+
+  const existingResult = roomData.results?.[myPlayerId] || null;
+  if (existingResult) {
+    return existingResult;
+  }
+
+  const stage = roomData.stage;
+  const roleComp = roomData.roleComp;
+  const players = roomData.players || {};
+
+  if (!stage || !roleComp || !MAP_COMPS[stage] || !MAP_COMPS[stage][roleComp]) {
+    alert("抽選に必要な情報が不足しています");
+    return null;
+  }
+
+  if (myPlayerId === ownerId) {
+    const orderedPlayers = getOrderedPlayers(players, ownerId);
+    if (orderedPlayers.length === 0) {
+      alert("参加プレイヤーがいません");
+      return null;
+    }
+
+    const selected = pickValidComp(MAP_COMPS[stage][roleComp], orderedPlayers, ownerId);
+    if (!selected) {
+      alert("成立する構成がありません");
+      return null;
+    }
+
+    const results = {};
+
+    orderedPlayers.forEach((player, index) => {
+      const assigned = selected.assignment[index];
+      const agentName = assigned?.name || "";
+      const agentId = assigned?.id || "";
+
+      results[player.id] = {
+        id: player.id,
+        name: player.name,
+        agent: agentId,
+        agentName,
+        effectType: getEffectType(player.id)
+      };
+    });
+
+    await set(ref(db, `rooms/${roomId}/results`), results);
+    await update(roomRef, {
+      state: "draw",
+      selectedComp: selected.comp,
+      selectedRoleComp: roleComp,
+      selectedStage: stage
+    });
+
+    return results[myPlayerId] || null;
+  }
+
+  return waitForConfirmedResult(roomId, myPlayerId);
+}
+
+function playPersonalDraw(result) {
+  return new Promise(resolve => {
+    const effectType = result?.effectType || getEffectType(result?.id || "");
+    const confirmedName = result?.agentName || "-";
+    const sequence = buildFakeSequence(confirmedName, effectType);
+    let index = 0;
+
+    let intervalMs = 90;
+    if (effectType === "slot") intervalMs = 80;
+    else if (effectType === "card") intervalMs = 160;
+    else if (effectType === "roulette") intervalMs = 70;
+    else if (effectType === "glitch") intervalMs = 55;
+    else if (effectType === "shuffle") intervalMs = 95;
+
+    renderDrawFrame(effectType, sequence[0] || confirmedName, false, "play");
+
+    clearInterval(frameTimer);
+    frameTimer = setInterval(() => {
+      if (effectType === "card") {
+        index = Math.min(index + 1, sequence.length - 1);
+      } else {
+        index = (index + 1) % sequence.length;
+      }
+
+      renderDrawFrame(effectType, sequence[index] || confirmedName, false, "play");
+    }, intervalMs);
+
+    clearTimeout(decideTimer);
+    decideTimer = setTimeout(() => {
+      clearInterval(frameTimer);
+      frameTimer = null;
+      renderDrawFrame(effectType, confirmedName, true, "decide");
+      resolve();
+    }, DECIDE_TIME_MS);
+  });
+}
+
 async function runDraw() {
   const roomId = window.currentRoom;
   const myPlayerId = window.currentPlayerId;
@@ -155,104 +377,65 @@ async function runDraw() {
   drawBusy = true;
 
   try {
-    const roomSnap = await get(ref(db, `rooms/${roomId}`));
-    const roomData = roomSnap.val();
-    if (!roomData) return;
+    const confirmedResult = await ensureConfirmedResult(roomId, myPlayerId, ownerId);
+    if (!confirmedResult) {
+      const roomSnap = await get(ref(db, `rooms/${roomId}`));
 
-    const stage = roomData.stage;
-    const roleComp = roomData.roleComp;
-    const players = roomData.players || {};
+      if (!roomSnap.exists()) {
+        alert("ルームが存在しません");
+        showScreen("screen-home");
+        return;
+      }
 
-    if (!stage || !roleComp || !MAP_COMPS[stage] || !MAP_COMPS[stage][roleComp]) {
-      alert("抽選に必要な情報が不足しています");
+      const latestRoomData = roomSnap.val() || {};
+      if ((latestRoomData.state || "") === "lobby") {
+        showScreen("screen-lobby");
+        return;
+      }
+
+      alert("抽選結果の取得に失敗しました");
+      showScreen("screen-stage-select");
       return;
     }
 
+    await playPersonalDraw(confirmedResult);
+    await wait(Math.max(0, DRAW_DURATION_MS - DECIDE_TIME_MS));
+
     if (myPlayerId === ownerId) {
-      const orderedPlayers = getOrderedPlayers(players, ownerId);
-      if (orderedPlayers.length === 0) {
-        alert("参加プレイヤーがいません");
-        return;
-      }
-
-      const selected = pickValidComp(MAP_COMPS[stage][roleComp], orderedPlayers, ownerId);
-      if (!selected) {
-        alert("成立する構成がありません");
-        return;
-      }
-
-      const results = {};
-
-      orderedPlayers.forEach((player, index) => {
-        const assigned = selected.assignment[index];
-        const agentName = assigned?.name || "";
-        const agentId = assigned?.id || "";
-
-        results[player.id] = {
-          id: player.id,
-          name: player.name,
-          agent: agentId,
-          agentName
-        };
-      });
-
-      await set(ref(db, `rooms/${roomId}/results`), results);
       await update(ref(db, `rooms/${roomId}`), {
-        state: "result",
-        selectedComp: selected.comp,
-        selectedRoleComp: roleComp,
-        selectedStage: stage
+        state: "result"
       });
     }
 
-    initPersonalResult(roomId, myPlayerId, false);
+    initPersonalResult(roomId, myPlayerId, false, {
+      autoAdvance: true,
+      displayMs: PERSONAL_RESULT_HOLD_MS,
+      confirmedResult
+    });
   } catch (error) {
     console.error(error);
     alert("抽選に失敗しました");
     showScreen("screen-stage-select");
   } finally {
+    clearDrawTimers();
     drawBusy = false;
   }
 }
 
 export function startDrawAnimation(onComplete) {
+  clearDrawTimers();
   showScreen("screen-draw");
 
-  const frames = [
-    "抽選中.",
-    "抽選中..",
-    "抽選中...",
-    "キャラ決定中.",
-    "キャラ決定中..",
-    "キャラ決定中..."
-  ];
-
-  let index = 0;
-
-  clearInterval(frameTimer);
-  clearTimeout(drawTimer);
-
   if (drawArea) {
-    drawArea.textContent = frames[0];
-
-    frameTimer = setInterval(() => {
-      index = (index + 1) % frames.length;
-      drawArea.textContent = frames[index];
-    }, 250);
+    drawArea.dataset.effect = "prepare";
+    drawArea.dataset.phase = "prepare";
+    drawArea.dataset.decided = "false";
+    drawArea.textContent = "結果確定中";
   }
 
-  drawTimer = setTimeout(async () => {
-    clearInterval(frameTimer);
-    frameTimer = null;
-
-    if (drawArea) {
-      drawArea.textContent = "決定！";
-    }
-
-    await runDraw();
-
+  runDraw().finally(() => {
     if (typeof onComplete === "function") {
       onComplete();
     }
-  }, 3000);
+  });
 }

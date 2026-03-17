@@ -37,6 +37,8 @@ let unwatchLobby = null;
 let actionBusy = false;
 let leaveHandled = false;
 
+const PRE_DRAW_STATES = new Set(["lobby", "stage-select"]);
+
 export async function initLobby() {
   roomId = window.currentRoom;
   const name = (window.playerName || "").trim();
@@ -170,10 +172,6 @@ function isEffectivelyEmptyRoom(players) {
 
 function bindDisconnect(targetRef) {
   onDisconnect(targetRef).remove().catch(() => {});
-
-  if (roomId) {
-    onDisconnect(ref(db, `rooms/${roomId}`)).remove().catch(() => {});
-  }
 }
 
 function getOrderedEntries(entries, ownerId = "") {
@@ -208,10 +206,26 @@ async function ensureRoomIntegrity(data) {
 
   const roomRef = ref(db, `rooms/${roomId}`);
   const players = data.players || {};
+  const roomState = data.state || "lobby";
+  const activePlayerCount = getActivePlayerCount(players);
+  const peakLobbyPlayerCount = Number(data.peakLobbyPlayerCount || 0);
 
   if (isEffectivelyEmptyRoom(players)) {
     await remove(roomRef).catch(() => {});
     return;
+  }
+
+  if (PRE_DRAW_STATES.has(roomState)) {
+    if (peakLobbyPlayerCount > 0 && activePlayerCount < peakLobbyPlayerCount) {
+      await remove(roomRef).catch(() => {});
+      return;
+    }
+
+    if (activePlayerCount > peakLobbyPlayerCount) {
+      await update(roomRef, { peakLobbyPlayerCount: activePlayerCount }).catch(() => {});
+    }
+  } else if (peakLobbyPlayerCount > 0) {
+    await update(roomRef, { peakLobbyPlayerCount: null }).catch(() => {});
   }
 
   const validOwnerId = getValidOwnerId(data.owner, players);
@@ -345,7 +359,7 @@ async function openOwnerPlayerAction(targetId, roomData) {
   }
 
   if (choice === "2") {
-    await kickMember(targetId);
+    await kickMember(targetId, roomData.state || "lobby");
   }
 }
 
@@ -363,7 +377,7 @@ async function transferOwner(targetId) {
   }
 }
 
-async function kickMember(targetId) {
+async function kickMember(targetId, roomState = "lobby") {
   if (!isOwner || !targetId || targetId === playerId) return;
 
   actionBusy = true;
@@ -371,8 +385,13 @@ async function kickMember(targetId) {
   try {
     const targetRef = ref(db, `rooms/${roomId}/players/${targetId}`);
     await onDisconnect(targetRef).cancel().catch(() => {});
-    await onDisconnect(ref(db, `rooms/${roomId}`)).cancel().catch(() => {});
-    await remove(ref(db, `rooms/${roomId}`));
+
+    if (PRE_DRAW_STATES.has(roomState)) {
+      await remove(ref(db, `rooms/${roomId}`));
+      return;
+    }
+
+    await remove(targetRef);
   } finally {
     actionBusy = false;
   }
@@ -400,12 +419,22 @@ stageBtn?.addEventListener("click", () => {
 });
 
 async function handleLeaveRoom() {
-  if (!roomId || leaveHandled) return;
+  if (!roomId || !playerId || leaveHandled) return;
 
   leaveHandled = true;
 
   try {
-    await remove(ref(db, `rooms/${roomId}`)).catch(() => {});
+    const roomRef = ref(db, `rooms/${roomId}`);
+    const roomSnap = await get(roomRef);
+    const roomData = roomSnap.exists() ? roomSnap.val() : null;
+    const roomState = roomData?.state || "lobby";
+
+    if (PRE_DRAW_STATES.has(roomState)) {
+      await remove(roomRef).catch(() => {});
+      return;
+    }
+
+    await remove(ref(db, `rooms/${roomId}/players/${playerId}`)).catch(() => {});
   } catch {
   }
 }
