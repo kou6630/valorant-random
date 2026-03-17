@@ -11,6 +11,7 @@ import { ref, onValue, off } from "https://www.gstatic.com/firebasejs/12.2.1/fir
 
 let watchedRoomId = null;
 let stateBound = false;
+let roomWatchPollTimer = null;
 let lastRoomState = null;
 let currentRoomRef = null;
 let currentRoomCallback = null;
@@ -123,33 +124,49 @@ function resetRoomWatchState() {
   window.currentPlayerId = "";
 }
 
+function attachRoomWatcher(roomId) {
+  if (!roomId || roomId === watchedRoomId) return;
+
+  if (currentRoomRef && currentRoomCallback) {
+    off(currentRoomRef, "value", currentRoomCallback);
+  }
+
+  watchedRoomId = roomId;
+  lastRoomState = null;
+  currentRoomRef = ref(db, `rooms/${roomId}`);
+  currentRoomCallback = async (snapshot) => {
+    const data = snapshot.val();
+    if (!data) {
+      resetRoomWatchState();
+      showScreen("screen-home");
+      return;
+    }
+
+    window.currentOwnerId = data.owner || "";
+    await handleRoomState(data);
+  };
+
+  onValue(currentRoomRef, currentRoomCallback);
+}
+
 function bindRoomStateWatcher() {
   if (stateBound) return;
 
-  window.setInterval(() => {
-    const roomId = window.currentRoom;
-    if (!roomId || roomId === watchedRoomId) return;
+  roomWatchPollTimer = window.setInterval(() => {
+    const roomId = window.currentRoom || "";
 
-    if (currentRoomRef && currentRoomCallback) {
-      off(currentRoomRef, "value", currentRoomCallback);
+    if (!roomId) {
+      if (watchedRoomId && currentRoomRef && currentRoomCallback) {
+        off(currentRoomRef, "value", currentRoomCallback);
+        watchedRoomId = null;
+        lastRoomState = null;
+        currentRoomRef = null;
+        currentRoomCallback = null;
+      }
+      return;
     }
 
-    watchedRoomId = roomId;
-    lastRoomState = null;
-    currentRoomRef = ref(db, `rooms/${roomId}`);
-    currentRoomCallback = async (snapshot) => {
-      const data = snapshot.val();
-      if (!data) {
-        resetRoomWatchState();
-        showScreen("screen-home");
-        return;
-      }
-
-      window.currentOwnerId = data.owner || "";
-      await handleRoomState(data);
-    };
-
-    onValue(currentRoomRef, currentRoomCallback);
+    attachRoomWatcher(roomId);
   }, 300);
 
   stateBound = true;

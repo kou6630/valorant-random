@@ -2,7 +2,6 @@
 
 import { db } from "./firebase.js";
 import { showScreen } from "./app.js";
-import { startDrawAnimation } from "./draw.js";
 
 import {
   ref,
@@ -170,7 +169,6 @@ startBtn.addEventListener("click", async () => {
     state: "draw"
   });
 
-  startDrawAnimation();
 });
 
 backBtn.addEventListener("click", async () => {
