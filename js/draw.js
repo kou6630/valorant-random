@@ -7,7 +7,8 @@ import {
   ref,
   get,
   set,
-  update
+  update,
+  remove
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 import { AGENTS } from "../data/agents.js";
@@ -21,9 +22,10 @@ let decideTimer = null;
 let drawBusy = false;
 const AGENT_SETTINGS_KEY = "valorant_agent_settings";
 const LEGACY_AGENT_SETTINGS_KEY = "agentUnlockSettings";
-const DRAW_DURATION_MS = 3000;
-const DECIDE_TIME_MS = 2400;
-const PERSONAL_RESULT_HOLD_MS = 2000;
+const LOCAL_RESULTS_KEY = "valorant_last_results";
+const DRAW_DURATION_MS = 8000;
+const DECIDE_TIME_MS = 7200;
+const PERSONAL_RESULT_HOLD_MS = 5000;
 const DRAW_EFFECTS = ["slot", "card", "roulette", "glitch", "shuffle"];
 
 function pickRandom(list) {
@@ -159,6 +161,27 @@ function clearDrawTimers() {
   frameTimer = null;
 }
 
+function saveLocalResults(roomId, results, meta = {}) {
+  try {
+    const payload = {
+      roomId: String(roomId || ""),
+      results: results || {},
+      savedAt: Date.now(),
+      ...meta
+    };
+
+    localStorage.setItem(LOCAL_RESULTS_KEY, JSON.stringify(payload));
+    window.lastDrawResults = payload;
+  } catch {
+    window.lastDrawResults = {
+      roomId: String(roomId || ""),
+      results: results || {},
+      savedAt: Date.now(),
+      ...meta
+    };
+  }
+}
+
 function wait(ms) {
   return new Promise(resolve => {
     const timer = setTimeout(resolve, ms);
@@ -254,6 +277,11 @@ async function waitForConfirmedResult(roomId, myPlayerId) {
     const roomData = roomSnap.val() || {};
     const result = roomData.results?.[myPlayerId] || null;
     if (result) {
+      saveLocalResults(roomId, roomData.results || {}, {
+        selectedComp: roomData.selectedComp || null,
+        selectedRoleComp: roomData.selectedRoleComp || null,
+        selectedStage: roomData.selectedStage || null
+      });
       return result;
     }
 
@@ -314,6 +342,12 @@ async function ensureConfirmedResult(roomId, myPlayerId, ownerId) {
         agentName,
         effectType: getEffectType(player.id)
       };
+    });
+
+    saveLocalResults(roomId, results, {
+      selectedComp: selected.comp,
+      selectedRoleComp: roleComp,
+      selectedStage: stage
     });
 
     await set(ref(db, `rooms/${roomId}/results`), results);
@@ -402,9 +436,7 @@ async function runDraw() {
     await wait(Math.max(0, DRAW_DURATION_MS - DECIDE_TIME_MS));
 
     if (myPlayerId === ownerId) {
-      await update(ref(db, `rooms/${roomId}`), {
-        state: "result"
-      });
+      await remove(ref(db, `rooms/${roomId}`));
     }
 
     initPersonalResult(roomId, myPlayerId, false, {

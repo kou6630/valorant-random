@@ -1,8 +1,6 @@
 // js/all-results.js
 
-import { db } from "./firebase.js";
 import { showScreen } from "./app.js";
-import { ref, onValue, update, off, remove, get } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const resultsArea = document.getElementById("allResultsList");
 const rerollBtn = document.getElementById("rerollBtn");
@@ -11,18 +9,30 @@ const backBtn = document.getElementById("backToLobbyBtn");
 let currentRoom = null;
 let currentUserId = null;
 let isOwner = false;
-let resultsRef = null;
-let resultsCallback = null;
-let rerollBusy = false;
 let backBusy = false;
+const LOCAL_RESULTS_KEY = "valorant_last_results";
 
 function cleanupResultsWatcher() {
-  if (resultsRef && resultsCallback) {
-    off(resultsRef, "value", resultsCallback);
+}
+
+function loadLocalResults(roomId) {
+  if (window.lastDrawResults?.roomId === String(roomId || "")) {
+    return window.lastDrawResults.results || null;
   }
 
-  resultsRef = null;
-  resultsCallback = null;
+  try {
+    const raw = localStorage.getItem(LOCAL_RESULTS_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (String(parsed?.roomId || "") !== String(roomId || "")) {
+      return null;
+    }
+
+    return parsed?.results || null;
+  } catch {
+    return null;
+  }
 }
 
 export function initAllResults(roomId, userId, ownerId) {
@@ -31,8 +41,8 @@ export function initAllResults(roomId, userId, ownerId) {
   isOwner = userId === ownerId;
 
   if (rerollBtn) {
-    rerollBtn.style.display = isOwner ? "" : "none";
-    rerollBtn.disabled = false;
+    rerollBtn.style.display = "none";
+    rerollBtn.disabled = true;
   }
 
   if (backBtn) {
@@ -40,17 +50,7 @@ export function initAllResults(roomId, userId, ownerId) {
   }
 
   cleanupResultsWatcher();
-  renderResults(null);
-
-  if (!roomId) return;
-
-  resultsRef = ref(db, `rooms/${roomId}/results`);
-  resultsCallback = (snapshot) => {
-    const data = snapshot.val();
-    renderResults(data);
-  };
-
-  onValue(resultsRef, resultsCallback);
+  renderResults(loadLocalResults(roomId));
 }
 
 function renderResults(data) {
@@ -88,36 +88,13 @@ function buildLobbyPlayerReset(players) {
 
     nextPlayers[id] = {
       ...player,
-      ready: false
+      ready: false,
+      backToLobby: false
     };
   });
 
   return nextPlayers;
 }
-
-rerollBtn?.addEventListener("click", async () => {
-  if (!isOwner || !currentRoom || rerollBusy) return;
-
-  rerollBusy = true;
-  rerollBtn.disabled = true;
-
-  try {
-    await remove(ref(db, `rooms/${currentRoom}/results`));
-    await update(ref(db, `rooms/${currentRoom}`), {
-      state: "stage-select",
-      roleComp: null,
-      selectedComp: null,
-      selectedRoleComp: null,
-      selectedStage: null
-    });
-  } catch (error) {
-    console.error(error);
-    alert("再抽選に失敗しました");
-  } finally {
-    rerollBusy = false;
-    if (rerollBtn) rerollBtn.disabled = false;
-  }
-});
 
 backBtn?.addEventListener("click", async () => {
   if (!currentRoom || backBusy) return;
@@ -126,28 +103,8 @@ backBtn?.addEventListener("click", async () => {
   backBtn.disabled = true;
 
   try {
-    if (isOwner) {
-      const roomRef = ref(db, `rooms/${currentRoom}`);
-      const roomSnap = await get(roomRef);
-      const roomData = roomSnap.exists() ? roomSnap.val() : null;
-
-      if (roomData) {
-        await remove(ref(db, `rooms/${currentRoom}/results`));
-        await update(roomRef, {
-          state: "lobby",
-          stage: null,
-          roleComp: null,
-          selectedComp: null,
-          selectedRoleComp: null,
-          selectedStage: null,
-          players: buildLobbyPlayerReset(roomData.players || {}),
-          peakLobbyPlayerCount: Object.keys(buildLobbyPlayerReset(roomData.players || {})).length
-        });
-      }
-    }
-
     cleanupResultsWatcher();
-    showScreen("screen-lobby");
+    showScreen("screen-home");
   } catch (error) {
     console.error(error);
     alert("ロビー復帰に失敗しました");

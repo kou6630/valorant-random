@@ -33,6 +33,12 @@ const RESULT_SCREENS = new Set([
   "screen-all-results"
 ]);
 
+const LOCAL_RESULT_SCREENS = new Set([
+  "screen-draw",
+  "screen-personal-result",
+  "screen-all-results"
+]);
+
 export async function showScreen(screenId) {
   if (screenId === "screen-agent-settings") {
     await ensureAgentSettingsModule();
@@ -70,6 +76,18 @@ function getActiveScreenId() {
   return active?.id || "";
 }
 
+function isCurrentPlayerActiveInRoom(data) {
+  const myId = String(window.currentPlayerId || "");
+  if (!myId) return true;
+
+  const player = data?.players?.[myId];
+  return !!player && player.connected !== false;
+}
+
+function isLocalResultFlowScreen() {
+  return LOCAL_RESULT_SCREENS.has(getActiveScreenId());
+}
+
 async function handleRoomState(data) {
   const state = data?.state;
   if (!state || state === lastRoomState) return;
@@ -77,11 +95,23 @@ async function handleRoomState(data) {
   lastRoomState = state;
 
   if (state === "lobby") {
+    if (!isCurrentPlayerActiveInRoom(data)) {
+      resetRoomWatchState();
+      showScreen("screen-home");
+      return;
+    }
+
     showScreen("screen-lobby");
     return;
   }
 
   if (state === "stage-select") {
+    if (!isCurrentPlayerActiveInRoom(data)) {
+      resetRoomWatchState();
+      showScreen("screen-home");
+      return;
+    }
+
     const { initStageSelect } = await import("./stage-select.js");
     showScreen("screen-stage-select");
     initStageSelect(
@@ -94,6 +124,7 @@ async function handleRoomState(data) {
 
   if (state === "draw") {
     if (getActiveScreenId() === "screen-draw") return;
+    detachRoomWatcher();
     const { startDrawAnimation } = await import("./draw.js");
     startDrawAnimation();
     return;
@@ -146,8 +177,11 @@ function attachRoomWatcher(roomId) {
   currentRoomCallback = async (snapshot) => {
     const data = snapshot.val();
     if (!data) {
-      resetRoomWatchState();
-      showScreen("screen-home");
+      detachRoomWatcher();
+      if (!isLocalResultFlowScreen()) {
+        resetRoomWatchState();
+        showScreen("screen-home");
+      }
       return;
     }
 
