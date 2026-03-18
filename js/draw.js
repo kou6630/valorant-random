@@ -23,9 +23,12 @@ let drawBusy = false;
 const AGENT_SETTINGS_KEY = "valorant_agent_settings";
 const LEGACY_AGENT_SETTINGS_KEY = "agentUnlockSettings";
 const LOCAL_RESULTS_KEY = "valorant_last_results";
+const CONFIRMED_RESULTS_PATH = "draw-confirmed";
+const REQUIRED_PLAYER_COUNT = 5;
 const DRAW_DURATION_MS = 8000;
-const DECIDE_TIME_MS = 7200;
+const DECIDE_TIME_MS = 7400;
 const PERSONAL_RESULT_HOLD_MS = 5000;
+const CONFIRMED_RESULTS_TTL_MS = DRAW_DURATION_MS + PERSONAL_RESULT_HOLD_MS + 15000;
 const DRAW_EFFECTS = ["slot", "card", "roulette", "glitch", "shuffle"];
 
 function pickRandom(list) {
@@ -161,24 +164,52 @@ function clearDrawTimers() {
   frameTimer = null;
 }
 
+function buildResultsPayload(roomId, results, meta = {}) {
+  return {
+    roomId: String(roomId || ""),
+    results: results || {},
+    savedAt: Date.now(),
+    ...meta
+  };
+}
+
+function getConfirmedResultsRef(roomId) {
+  return ref(db, `${CONFIRMED_RESULTS_PATH}/${roomId}`);
+}
+
+async function readConfirmedResults(roomId) {
+  const snap = await get(getConfirmedResultsRef(roomId));
+  return snap.exists() ? (snap.val() || null) : null;
+}
+
+function applyConfirmedResults(roomId, myPlayerId, payload) {
+  if (!payload?.results || typeof payload.results !== "object") {
+    return null;
+  }
+
+  saveLocalResults(roomId, payload.results, {
+    selectedComp: payload.selectedComp || null,
+    selectedRoleComp: payload.selectedRoleComp || null,
+    selectedStage: payload.selectedStage || null
+  });
+
+  return payload.results?.[myPlayerId] || null;
+}
+
+function scheduleConfirmedResultsCleanup(roomId) {
+  window.setTimeout(() => {
+    remove(getConfirmedResultsRef(roomId)).catch(() => {});
+  }, CONFIRMED_RESULTS_TTL_MS);
+}
+
 function saveLocalResults(roomId, results, meta = {}) {
   try {
-    const payload = {
-      roomId: String(roomId || ""),
-      results: results || {},
-      savedAt: Date.now(),
-      ...meta
-    };
+    const payload = buildResultsPayload(roomId, results, meta);
 
     localStorage.setItem(LOCAL_RESULTS_KEY, JSON.stringify(payload));
     window.lastDrawResults = payload;
   } catch {
-    window.lastDrawResults = {
-      roomId: String(roomId || ""),
-      results: results || {},
-      savedAt: Date.now(),
-      ...meta
-    };
+    window.lastDrawResults = buildResultsPayload(roomId, results, meta);
   }
 }
 
@@ -311,29 +342,48 @@ function buildCardFrame(agentName, phase, progress) {
   const revealedCount = phase === "decide"
     ? totalCards
     : Math.max(0, Math.min(totalCards, Math.floor(progress * (totalCards + 1))));
+  const hiddenCount = Math.max(0, totalCards - revealedCount);
+  const pool = getAgentNamesPool(agentName);
+  const openedNames = pool.slice(0, Math.max(0, totalCards - 1));
 
   const cards = Array.from({ length: totalCards }, (_, index) => {
     const isLast = index === totalCards - 1;
     const isOpened = index < revealedCount;
+    const isRemoved = isOpened && !isLast;
 
     if (!isOpened) {
-      return "[ 伏せ ]";
+      return `
+        <div class="draw-card-cell draw-card-face-down${isLast && hiddenCount === 1 ? " is-final" : ""}">
+          <div class="draw-card-back-inner">?</div>
+        </div>
+      `;
     }
 
     if (isLast) {
-      return `[ ${padCenter(agentName, 6)} ]`;
+      return `
+        <div class="draw-card-cell draw-card-face-up is-final-result">
+          ${renderAgentTile(agentName, "draw-card-agent", phase === "decide" ? "決定" : "")}
+        </div>
+      `;
     }
 
-    return "[ハズレ]";
+    const openedName = openedNames[index] || pool[index] || agentName;
+    return `
+      <div class="draw-card-cell draw-card-face-up is-cleared">
+        ${renderAgentTile(openedName, "draw-card-agent", "ハズレ")}
+      </div>
+    `;
   });
 
-  const topRow = cards.slice(0, 5).join("  ");
-  const bottomRow = cards.slice(5, 10).join("  ");
-  const focus = phase === "decide"
-    ? "▼ 最後の1枚で決定 ▼"
-    : revealedCount >= totalCards ? "▼ 本命オープン ▼" : "▼ 1枚ずつ公開 ▼";
-
-  return [topRow, "", bottomRow, focus].filter(Boolean).join("\\n");
+  return `
+    <div class="draw-card-board${phase === "decide" ? " is-decide" : ""}">
+      ${cards.map((card, index) => `
+        <div class="draw-card-slot${index < revealedCount && index !== totalCards - 1 ? " is-opened" : ""}${index === totalCards - 1 && revealedCount >= totalCards ? " is-final-open" : ""}">
+          ${card}
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 function buildRouletteFrame(agentName, phase, progress) {
@@ -352,7 +402,7 @@ function buildRouletteFrame(agentName, phase, progress) {
     "┌────────┐ ┌────────┐ ┌────────┐",
     `│${padCenter(leftName, 8)}│ │${padCenter(centerName, 8)}│ │${padCenter(rightName, 8)}│`,
     "└────────┘ └────────┘ └────────┘"
-  ].join("\\n");
+  ].join("\n");
 }
 
 function buildGlitchText(agentName, progress) {
@@ -427,7 +477,7 @@ function buildShuffleFrame(agentName, phase, progress) {
 }
 
 function buildDecideBadge() {
-  return "\\n\\n★ 決定 ★";
+  return "\n\n★ 決定 ★";
 }
 
 function renderDrawFrame(effectType, agentName, isDecided = false, phase = "play", progress = 0) {
@@ -446,6 +496,7 @@ function renderDrawFrame(effectType, agentName, isDecided = false, phase = "play
     useHtml = true;
   } else if (effectType === "card") {
     content = buildCardFrame(safeName, phase, progress);
+    useHtml = true;
   } else if (effectType === "roulette") {
     content = buildRouletteFrame(safeName, phase, progress);
   } else if (effectType === "glitch") {
@@ -464,25 +515,32 @@ function renderDrawFrame(effectType, agentName, isDecided = false, phase = "play
 }
 
 async function waitForConfirmedResult(roomId, myPlayerId) {
-  for (let i = 0; i < 50; i++) {
-    const roomSnap = await get(ref(db, `rooms/${roomId}`));
-    if (!roomSnap.exists()) {
-      return null;
+  const roomRef = ref(db, `rooms/${roomId}`);
+
+  for (let i = 0; i < 80; i++) {
+    const confirmedPayload = await readConfirmedResults(roomId);
+    const confirmedResult = applyConfirmedResults(roomId, myPlayerId, confirmedPayload);
+    if (confirmedResult) {
+      return confirmedResult;
     }
 
-    const roomData = roomSnap.val() || {};
-    const result = roomData.results?.[myPlayerId] || null;
-    if (result) {
-      saveLocalResults(roomId, roomData.results || {}, {
+    const roomSnap = await get(roomRef);
+    if (roomSnap.exists()) {
+      const roomData = roomSnap.val() || {};
+      const fallbackResult = applyConfirmedResults(roomId, myPlayerId, {
+        results: roomData.results || null,
         selectedComp: roomData.selectedComp || null,
         selectedRoleComp: roomData.selectedRoleComp || null,
         selectedStage: roomData.selectedStage || null
       });
-      return result;
-    }
 
-    if (roomData.state === "lobby") {
-      return null;
+      if (fallbackResult) {
+        return fallbackResult;
+      }
+
+      if (roomData.state === "lobby") {
+        return null;
+      }
     }
 
     await wait(100);
@@ -513,8 +571,8 @@ async function ensureConfirmedResult(roomId, myPlayerId, ownerId) {
 
   if (myPlayerId === ownerId) {
     const orderedPlayers = getOrderedPlayers(players, ownerId);
-    if (orderedPlayers.length === 0) {
-      alert("参加プレイヤーがいません");
+    if (orderedPlayers.length !== REQUIRED_PLAYER_COUNT) {
+      alert("参加プレイヤーが5人ではありません");
       return null;
     }
 
@@ -540,19 +598,17 @@ async function ensureConfirmedResult(roomId, myPlayerId, ownerId) {
       };
     });
 
-    saveLocalResults(roomId, results, {
+    const meta = {
       selectedComp: selected.comp,
       selectedRoleComp: roleComp,
       selectedStage: stage
-    });
+    };
+    const payload = buildResultsPayload(roomId, results, meta);
 
-    await set(ref(db, `rooms/${roomId}/results`), results);
-    await update(roomRef, {
-      state: "draw",
-      selectedComp: selected.comp,
-      selectedRoleComp: roleComp,
-      selectedStage: stage
-    });
+    saveLocalResults(roomId, results, meta);
+    await set(getConfirmedResultsRef(roomId), payload);
+    await remove(roomRef);
+    scheduleConfirmedResultsCleanup(roomId);
 
     return results[myPlayerId] || null;
   }
