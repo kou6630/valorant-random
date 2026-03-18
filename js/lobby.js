@@ -16,7 +16,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
 const playerList = document.getElementById("playerList");
-const spectatorList = document.getElementById("spectatorList");
 
 const readyBtn = document.getElementById("readyBtn");
 const cancelReadyBtn = document.getElementById("cancelReadyBtn");
@@ -76,7 +75,6 @@ function cleanupLobbyWatcher() {
   }
 }
 
-const PRE_DRAW_STATES = new Set(["lobby", "stage-select"]);
 
 export async function initLobby() {
   roomId = window.currentRoom;
@@ -290,7 +288,6 @@ function watchLobby() {
     window.currentOwnerId = owner;
 
     renderPlayers(players, owner, roomState);
-    renderSpectators();
 
     if (lobbyOwnerText) {
       lobbyOwnerText.textContent = players[owner]?.name || "-";
@@ -327,10 +324,6 @@ function renderPlayers(players, owner, roomState) {
   });
 }
 
-function renderSpectators() {
-  if (!spectatorList) return;
-  spectatorList.innerHTML = "";
-}
 
 function checkReady(players) {
   const list = Object.values(players || {}).filter(isActivePlayerEntry);

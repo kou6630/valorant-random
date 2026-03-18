@@ -212,59 +212,255 @@ function buildFakeSequence(confirmedName, effectType) {
   const pool = getAgentNamesPool(confirmedName);
 
   if (effectType === "card") {
-    return [...pool.slice(0, 6), confirmedName];
-  }
-
-  if (effectType === "glitch") {
-    return [...pool.slice(0, 8), confirmedName, confirmedName];
-  }
-
-  if (effectType === "shuffle") {
     return [...pool.slice(0, 9), confirmedName];
   }
 
-  if (effectType === "roulette") {
-    return [...pool.slice(0, 10), confirmedName];
+  if (effectType === "glitch") {
+    return [...pool.slice(0, 12), confirmedName, confirmedName, confirmedName];
   }
 
-  return [...pool.slice(0, 10), confirmedName, confirmedName];
+  if (effectType === "shuffle") {
+    return [...pool.slice(0, 12), confirmedName];
+  }
+
+  if (effectType === "roulette") {
+    return [...pool.slice(0, 14), confirmedName];
+  }
+
+  return [...pool.slice(0, 14), confirmedName, confirmedName, confirmedName];
 }
 
 function formatEffectText(effectType) {
-  if (effectType === "slot") return "スロット式";
-  if (effectType === "card") return "カードめくり式";
-  if (effectType === "roulette") return "ルーレット式";
-  if (effectType === "glitch") return "グリッチ式";
-  return "シャッフル式";
+  if (effectType === "slot") return "slot";
+  if (effectType === "card") return "card";
+  if (effectType === "roulette") return "roulette";
+  if (effectType === "glitch") return "glitch";
+  return "shuffle";
 }
 
-function renderDrawFrame(effectType, agentName, isDecided = false, phase = "play") {
+function padCenter(text, width = 14) {
+  const value = String(text || "-");
+  const space = Math.max(0, width - value.length);
+  const left = Math.floor(space / 2);
+  const right = space - left;
+  return `${" ".repeat(left)}${value}${" ".repeat(right)}`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function getAgentImageSrc(agentName) {
+  const agentId = getAgentIdByName(agentName);
+  return agentId ? `img/agents/${agentId}.png` : "";
+}
+
+function renderAgentTile(agentName, className = "", label = "") {
+  const src = getAgentImageSrc(agentName);
+  const safeName = escapeHtml(agentName || "-");
+  const rawClass = String(className || "").trim();
+  const safeClass = escapeHtml(rawClass);
+  const baseClass = rawClass.includes(" ") ? rawClass.split(" ")[0] : (rawClass || "draw-agent-tile");
+  const safeBaseClass = escapeHtml(baseClass);
+  const safeLabel = label ? `<div class="${safeBaseClass}-label">${escapeHtml(label)}</div>` : "";
+
+  if (!src) {
+    return `
+      <div class="${safeClass}">
+        <div class="${safeBaseClass}-fallback">${safeName}</div>
+        ${safeLabel}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="${safeClass}">
+      <img src="${escapeHtml(src)}" alt="${safeName}" class="${safeBaseClass}-img" loading="eager" decoding="async">
+      <div class="${safeBaseClass}-name">${safeName}</div>
+      ${safeLabel}
+    </div>
+  `;
+}
+
+function buildSlotFrame(agentName, phase, progress) {
+  const pool = getAgentNamesPool(agentName);
+  const topName = phase === "decide"
+    ? agentName
+    : (progress > 0.82 ? agentName : (pool[0] || agentName));
+  const bottomName = phase === "decide"
+    ? agentName
+    : (progress > 0.9 ? agentName : (pool[1] || agentName));
+  const glowClass = phase === "decide" ? " draw-slot is-decide" : (progress > 0.72 ? " draw-slot is-slow" : " draw-slot");
+
+  return `
+    <div class="${glowClass}">
+      <div class="draw-slot-reel draw-slot-reel-top">${renderAgentTile(topName, "draw-slot-card")}</div>
+      <div class="draw-slot-reel draw-slot-reel-center">${renderAgentTile(agentName, "draw-slot-card", phase === "decide" ? "決定" : "")}</div>
+      <div class="draw-slot-reel draw-slot-reel-bottom">${renderAgentTile(bottomName, "draw-slot-card")}</div>
+    </div>
+  `;
+}
+
+function buildCardFrame(agentName, phase, progress) {
+  const totalCards = 10;
+  const revealedCount = phase === "decide"
+    ? totalCards
+    : Math.max(0, Math.min(totalCards, Math.floor(progress * (totalCards + 1))));
+
+  const cards = Array.from({ length: totalCards }, (_, index) => {
+    const isLast = index === totalCards - 1;
+    const isOpened = index < revealedCount;
+
+    if (!isOpened) {
+      return "[ 伏せ ]";
+    }
+
+    if (isLast) {
+      return `[ ${padCenter(agentName, 6)} ]`;
+    }
+
+    return "[ハズレ]";
+  });
+
+  const topRow = cards.slice(0, 5).join("  ");
+  const bottomRow = cards.slice(5, 10).join("  ");
+  const focus = phase === "decide"
+    ? "▼ 最後の1枚で決定 ▼"
+    : revealedCount >= totalCards ? "▼ 本命オープン ▼" : "▼ 1枚ずつ公開 ▼";
+
+  return [topRow, "", bottomRow, focus].filter(Boolean).join("\\n");
+}
+
+function buildRouletteFrame(agentName, phase, progress) {
+  const pool = getAgentNamesPool(agentName);
+  const leftName = phase === "decide"
+    ? agentName
+    : (progress > 0.88 ? agentName : (pool[0] || agentName));
+  const centerName = agentName;
+  const rightName = phase === "decide"
+    ? agentName
+    : (progress > 0.94 ? agentName : (pool[1] || agentName));
+  const marker = phase === "decide" ? "▼ 3枚一致 ▼" : progress > 0.72 ? "▼ そろいかけ ▼" : "▼ 回転中 ▼";
+
+  return [
+    `        ${marker}`,
+    "┌────────┐ ┌────────┐ ┌────────┐",
+    `│${padCenter(leftName, 8)}│ │${padCenter(centerName, 8)}│ │${padCenter(rightName, 8)}│`,
+    "└────────┘ └────────┘ └────────┘"
+  ].join("\\n");
+}
+
+function buildGlitchText(agentName, progress) {
+  const chars = String(agentName || "-").split("");
+  const noise = ["#", "%", "@", "&", "/", "*", "+", "="];
+  return chars.map((char, index) => {
+    if (progress > 0.8 || Math.random() > 0.35 + (progress * 0.45)) {
+      return char;
+    }
+    return noise[(index + Math.floor(Math.random() * noise.length)) % noise.length];
+  }).join("");
+}
+
+function buildGlitchSlices(agentName, progress) {
+  const src = getAgentImageSrc(agentName);
+  const safeName = escapeHtml(agentName || "-");
+  if (!src) {
+    return `<div class="draw-glitch-fallback">${escapeHtml(buildGlitchText(agentName, progress))}</div>`;
+  }
+
+  const offsets = [
+    `${Math.round((0.5 - Math.random()) * 28)}px`,
+    `${Math.round((0.5 - Math.random()) * 20)}px`,
+    `${Math.round((0.5 - Math.random()) * 32)}px`
+  ];
+
+  return `
+    <div class="draw-glitch-stack">
+      <img src="${escapeHtml(src)}" alt="${safeName}" class="draw-glitch-img draw-glitch-base" loading="eager" decoding="async">
+      <img src="${escapeHtml(src)}" alt="${safeName}" class="draw-glitch-img draw-glitch-slice draw-glitch-slice-a" style="transform:translateX(${offsets[0]});" loading="eager" decoding="async">
+      <img src="${escapeHtml(src)}" alt="${safeName}" class="draw-glitch-img draw-glitch-slice draw-glitch-slice-b" style="transform:translateX(${offsets[1]});" loading="eager" decoding="async">
+      <img src="${escapeHtml(src)}" alt="${safeName}" class="draw-glitch-img draw-glitch-slice draw-glitch-slice-c" style="transform:translateX(${offsets[2]});" loading="eager" decoding="async">
+    </div>
+  `;
+}
+
+function buildGlitchFrame(agentName, phase, progress) {
+  const content = phase === "decide"
+    ? renderAgentTile(agentName, "draw-glitch-card", "決定")
+    : buildGlitchSlices(agentName, progress);
+
+  return `
+    <div class="draw-glitch ${phase === "decide" ? "is-decide" : ""}">
+      ${content}
+      <div class="draw-glitch-name">${escapeHtml(phase === "decide" ? agentName : buildGlitchText(agentName, progress))}</div>
+    </div>
+  `;
+}
+
+function buildShuffleFrame(agentName, phase, progress) {
+  const pool = shuffle(getAgentNamesPool(agentName)).slice(0, 4);
+  const center = phase === "decide" ? agentName : (progress > 0.78 ? agentName : (pool[0] || agentName));
+  const left = pool[1] || agentName;
+  const right = pool[2] || agentName;
+  const tail = pool[3] || agentName;
+
+  return `
+    <div class="draw-shuffle ${phase === "decide" ? "is-decide" : ""}">
+      <div class="draw-shuffle-row draw-shuffle-row-top">
+        ${renderAgentTile(left, "draw-shuffle-card draw-shuffle-side")}
+        ${renderAgentTile(right, "draw-shuffle-card draw-shuffle-side")}
+      </div>
+      <div class="draw-shuffle-row draw-shuffle-row-center">
+        ${renderAgentTile(center, "draw-shuffle-card draw-shuffle-main", phase === "decide" ? "決定" : "")}
+      </div>
+      <div class="draw-shuffle-row draw-shuffle-row-bottom">
+        ${renderAgentTile(tail, "draw-shuffle-card draw-shuffle-side")}
+        ${renderAgentTile(left, "draw-shuffle-card draw-shuffle-side")}
+      </div>
+    </div>
+  `;
+}
+
+function buildDecideBadge() {
+  return "\\n\\n★ 決定 ★";
+}
+
+function renderDrawFrame(effectType, agentName, isDecided = false, phase = "play", progress = 0) {
   if (!drawArea) return;
 
   drawArea.dataset.effect = effectType || "slot";
   drawArea.dataset.phase = phase;
   drawArea.dataset.decided = isDecided ? "true" : "false";
 
-  let displayName = agentName || "-";
+  const safeName = agentName || "-";
+  let content = "";
+  let useHtml = false;
 
-  if (phase === "play") {
-    if (effectType === "slot") displayName = `│ ${displayName} │`;
-    else if (effectType === "card") displayName = `【 ${displayName} 】`;
-    else if (effectType === "roulette") displayName = `◯ ${displayName} ◯`;
-    else if (effectType === "glitch") displayName = `# ${displayName} #`;
-    else displayName = `→ ${displayName} ←`;
+  if (effectType === "slot") {
+    content = buildSlotFrame(safeName, phase, progress);
+    useHtml = true;
+  } else if (effectType === "card") {
+    content = buildCardFrame(safeName, phase, progress);
+  } else if (effectType === "roulette") {
+    content = buildRouletteFrame(safeName, phase, progress);
+  } else if (effectType === "glitch") {
+    content = buildGlitchFrame(safeName, phase, progress);
+    useHtml = true;
+  } else {
+    content = buildShuffleFrame(safeName, phase, progress);
+    useHtml = true;
   }
 
-  const lines = [
-    formatEffectText(effectType),
-    displayName
-  ];
-
-  if (isDecided) {
-    lines.push("決定！");
+  if (useHtml) {
+    drawArea.innerHTML = isDecided ? `${content}<div class="draw-decide-badge">★ 決定 ★</div>` : content;
+  } else {
+    drawArea.textContent = isDecided ? `${content}${buildDecideBadge()}` : content;
   }
-
-  drawArea.textContent = lines.join("\n");
 }
 
 async function waitForConfirmedResult(roomId, myPlayerId) {
@@ -370,32 +566,42 @@ function playPersonalDraw(result) {
     const confirmedName = result?.agentName || "-";
     const sequence = buildFakeSequence(confirmedName, effectType);
     let index = 0;
+    let tick = 0;
+    const startAt = Date.now();
 
-    let intervalMs = 90;
-    if (effectType === "slot") intervalMs = 80;
-    else if (effectType === "card") intervalMs = 160;
-    else if (effectType === "roulette") intervalMs = 70;
-    else if (effectType === "glitch") intervalMs = 55;
-    else if (effectType === "shuffle") intervalMs = 95;
-
-    renderDrawFrame(effectType, sequence[0] || confirmedName, false, "play");
+    renderDrawFrame(effectType, sequence[0] || confirmedName, false, "play", 0);
 
     clearInterval(frameTimer);
     frameTimer = setInterval(() => {
+      const elapsed = Date.now() - startAt;
+      const progress = Math.max(0, Math.min(1, elapsed / DECIDE_TIME_MS));
+      const eased = 1 - Math.pow(1 - progress, 3);
+
       if (effectType === "card") {
-        index = Math.min(index + 1, sequence.length - 1);
+        index = Math.min(Math.floor(eased * (sequence.length - 1)), sequence.length - 1);
+      } else if (effectType === "roulette") {
+        const step = progress < 0.55 ? 1 : (tick % (progress > 0.82 ? 4 : 2) === 0 ? 1 : 0);
+        index = (index + step) % sequence.length;
+      } else if (effectType === "glitch") {
+        const nearEnd = progress > 0.84;
+        index = nearEnd ? sequence.length - 1 : (index + 1 + (tick % 2)) % sequence.length;
+      } else if (effectType === "shuffle") {
+        index = progress > 0.8 ? sequence.length - 1 : (index + 1) % sequence.length;
       } else {
-        index = (index + 1) % sequence.length;
+        const step = progress < 0.62 ? 1 : (tick % (progress > 0.85 ? 5 : 2) === 0 ? 1 : 0);
+        index = (index + step) % sequence.length;
       }
 
-      renderDrawFrame(effectType, sequence[index] || confirmedName, false, "play");
-    }, intervalMs);
+      tick += 1;
+      const currentName = sequence[index] || confirmedName;
+      renderDrawFrame(effectType, currentName, false, "play", progress);
+    }, 50);
 
     clearTimeout(decideTimer);
     decideTimer = setTimeout(() => {
       clearInterval(frameTimer);
       frameTimer = null;
-      renderDrawFrame(effectType, confirmedName, true, "decide");
+      renderDrawFrame(effectType, confirmedName, true, "decide", 1);
       resolve();
     }, DECIDE_TIME_MS);
   });
@@ -462,7 +668,7 @@ export function startDrawAnimation(onComplete) {
     drawArea.dataset.effect = "prepare";
     drawArea.dataset.phase = "prepare";
     drawArea.dataset.decided = "false";
-    drawArea.textContent = "結果確定中";
+    drawArea.textContent = "";
   }
 
   runDraw().finally(() => {

@@ -203,6 +203,7 @@ button:disabled{
     0 0 18px rgba(255,70,85,0.32),
     0 0 32px rgba(255,255,255,0.08);
   animation:drawPulse 1.2s ease-in-out infinite;
+  overflow:hidden;
 }
 
 #screen-draw .center-panel{
@@ -222,6 +223,238 @@ button:disabled{
 
 #screen-draw h2{
   letter-spacing:.08em;
+}
+
+.draw-slot,
+.draw-glitch,
+.draw-shuffle{
+  width:100%;
+  max-width:920px;
+  margin:0 auto;
+  position:relative;
+  z-index:1;
+}
+
+.draw-slot{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:18px;
+  align-items:center;
+}
+
+.draw-slot.is-slow{
+  transform:scale(1.03);
+}
+
+.draw-slot.is-decide{
+  transform:scale(1.08);
+}
+
+.draw-slot-reel{
+  min-width:0;
+}
+
+.draw-slot-reel-top,
+.draw-slot-reel-bottom{
+  opacity:.48;
+  transform:scale(.88);
+  filter:blur(1.4px) saturate(.82);
+}
+
+.draw-slot-reel-center{
+  transform:scale(1.02);
+}
+
+.draw-slot.is-slow .draw-slot-reel-top,
+.draw-slot.is-slow .draw-slot-reel-bottom{
+  opacity:.62;
+  filter:blur(.8px) saturate(.92);
+}
+
+.draw-slot.is-decide .draw-slot-reel-top,
+.draw-slot.is-decide .draw-slot-reel-bottom{
+  opacity:.22;
+  transform:scale(.82);
+  filter:blur(2px) saturate(.7);
+}
+
+.draw-slot.is-decide .draw-slot-reel-center{
+  transform:scale(1.08);
+}
+
+.draw-slot-card,
+.draw-glitch-card,
+.draw-shuffle-card,
+.draw-agent-tile{
+  position:relative;
+  border-radius:18px;
+  overflow:hidden;
+  background:linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+  border:1px solid rgba(255,255,255,0.12);
+  box-shadow:0 12px 32px rgba(0,0,0,0.28);
+}
+
+.draw-slot-card-img,
+.draw-glitch-card-img,
+.draw-shuffle-card-img,
+.draw-agent-tile-img{
+  display:block;
+  width:100%;
+  aspect-ratio:1/1;
+  object-fit:cover;
+  background:#0b0d12;
+}
+
+.draw-slot-card-name,
+.draw-glitch-card-name,
+.draw-shuffle-card-name,
+.draw-agent-tile-name{
+  padding:10px 12px 12px;
+  font-size:15px;
+  font-weight:800;
+  letter-spacing:.03em;
+  text-align:center;
+  word-break:break-word;
+}
+
+.draw-slot-card-label,
+.draw-glitch-card-label,
+.draw-shuffle-card-label,
+.draw-agent-tile-label{
+  position:absolute;
+  top:10px;
+  right:10px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:rgba(255,70,85,0.92);
+  color:#fff;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.08em;
+  box-shadow:0 8px 18px rgba(255,70,85,0.35);
+}
+
+.draw-slot-card-fallback,
+.draw-glitch-card-fallback,
+.draw-shuffle-card-fallback,
+.draw-agent-tile-fallback{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  aspect-ratio:1/1;
+  padding:20px;
+  background:#141922;
+  font-size:24px;
+  font-weight:800;
+  text-align:center;
+  word-break:break-word;
+}
+
+.draw-glitch{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:16px;
+}
+
+.draw-glitch-stack{
+  position:relative;
+  width:min(420px, 70vw);
+  aspect-ratio:1/1;
+  border-radius:22px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,0.14);
+  box-shadow:0 16px 38px rgba(0,0,0,0.34);
+}
+
+.draw-glitch-img{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.draw-glitch-base{
+  opacity:.9;
+}
+
+.draw-glitch-slice{
+  mix-blend-mode:screen;
+  opacity:.55;
+  animation:glitchShift .22s steps(2,end) infinite;
+}
+
+.draw-glitch-slice-a{
+  clip-path:polygon(0 0, 100% 0, 100% 28%, 0 22%);
+}
+
+.draw-glitch-slice-b{
+  clip-path:polygon(0 36%, 100% 32%, 100% 68%, 0 72%);
+}
+
+.draw-glitch-slice-c{
+  clip-path:polygon(0 74%, 100% 68%, 100% 100%, 0 100%);
+}
+
+.draw-glitch-name{
+  font-size:24px;
+  font-weight:900;
+  letter-spacing:.06em;
+  text-shadow:0 0 20px rgba(255,70,85,0.36);
+}
+
+.draw-glitch-fallback{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:min(420px, 70vw);
+  aspect-ratio:1/1;
+  border-radius:22px;
+  background:#141922;
+  border:1px solid rgba(255,255,255,0.14);
+  font-size:32px;
+  font-weight:900;
+}
+
+.draw-shuffle{
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+}
+
+.draw-shuffle-row{
+  display:flex;
+  justify-content:center;
+  gap:18px;
+  align-items:center;
+}
+
+.draw-shuffle-side{
+  width:min(220px, 28vw);
+  opacity:.72;
+  transform:scale(.92);
+  filter:saturate(.86) brightness(.82);
+}
+
+.draw-shuffle-main{
+  width:min(320px, 40vw);
+  transform:scale(1.02);
+  box-shadow:0 18px 42px rgba(255,70,85,0.24);
+}
+
+.draw-shuffle.is-decide .draw-shuffle-main{
+  transform:scale(1.1);
+}
+
+.draw-decide-badge{
+  margin-top:18px;
+  font-size:30px;
+  font-weight:900;
+  letter-spacing:.12em;
+  color:#fff4f5;
+  text-shadow:0 0 18px rgba(255,70,85,0.52);
+  text-align:center;
 }
 
 #personalAgentName{
@@ -256,6 +489,28 @@ button:disabled{
   0%{
     transform:translate3d(-2%, -1%, 0) scale(1);
   }
+  35%{
+    transform:translate3d(1.5%, 1%, 0) scale(1.04);
+  }
+  70%{
+    transform:translate3d(-1%, 1.5%, 0) scale(1.02);
+  }
+  100%{
+    transform:translate3d(-2%, -1%, 0) scale(1);
+  }
+}
+
+@keyframes glitchShift{
+  0%{
+    transform:translateX(0);
+  }
+  50%{
+    transform:translateX(6px);
+  }
+  100%{
+    transform:translateX(-4px);
+  }
+}
   35%{
     transform:translate3d(1.5%, 1%, 0) scale(1.04);
   }
@@ -332,6 +587,33 @@ button:disabled{
     min-height:180px;
     padding:22px 18px;
     font-size:28px;
+  }
+
+  .draw-slot{
+    grid-template-columns:1fr;
+  }
+
+  .draw-slot-card-name,
+  .draw-glitch-card-name,
+  .draw-shuffle-card-name,
+  .draw-agent-tile-name{
+    font-size:13px;
+  }
+
+  .draw-glitch-name{
+    font-size:18px;
+  }
+
+  .draw-shuffle-row{
+    gap:10px;
+  }
+
+  .draw-shuffle-side{
+    width:42vw;
+  }
+
+  .draw-shuffle-main{
+    width:56vw;
   }
 
   #personalAgentName{

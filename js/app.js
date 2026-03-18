@@ -94,6 +94,10 @@ async function handleRoomState(data) {
 
   lastRoomState = state;
 
+  if (isLocalResultFlowScreen() && (state === "lobby" || state === "stage-select")) {
+    return;
+  }
+
   if (state === "lobby") {
     if (!isCurrentPlayerActiveInRoom(data)) {
       resetRoomWatchState();
